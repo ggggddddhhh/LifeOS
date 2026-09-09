@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:eval": "vitest run --config vitest.eval.config.ts",
     "db:push": "prisma db push",
     "db:push:test": "node scripts/db-push-test.mjs"
   },

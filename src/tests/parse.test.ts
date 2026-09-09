@@ -33,4 +33,16 @@ describe("normalizePlannedTasks", () => {
     expect(normalizePlannedTasks(null)).toEqual([]);
     expect(normalizePlannedTasks({})).toEqual([]);
   });
+  it("重复标题（归一化后）只保留首条", () => {
+    const out = normalizePlannedTasks([
+      { title: "写测试", priority: 1, estMinutes: 60 },
+      { title: "写测试", priority: 2, estMinutes: 90 },
+      { title: "写 测试。", priority: 3, estMinutes: 30 },
+      { title: "另一个任务", priority: 2, estMinutes: 30 },
+    ]);
+    expect(out).toEqual([
+      { title: "写测试", priority: 1, estMinutes: 60 },
+      { title: "另一个任务", priority: 2, estMinutes: 30 },
+    ]);
+  });
 });

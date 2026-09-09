@@ -1,13 +1,18 @@
 import type { PlannedTask } from "../types";
 
-/** 校验并规范化 LLM 返回的任务列表，坏条目直接丢弃 */
+/** 校验并规范化 LLM 返回的任务列表：坏条目丢弃，重复标题（归一化后）只保留首条 */
 export function normalizePlannedTasks(raw: unknown): PlannedTask[] {
   if (!Array.isArray(raw)) return [];
   const out: PlannedTask[] = [];
+  const seenTitles = new Set<string>();
   for (const item of raw) {
     if (typeof item !== "object" || item === null) continue;
     const r = item as Record<string, unknown>;
     if (typeof r.title !== "string" || r.title.trim().length === 0) continue;
+    const title = r.title.trim().slice(0, 200);
+    const normalized = title.toLowerCase().replace(/[\s，。、,.:：;；!！?？·\-—_/\\()（）\[\]【】"'"']+/g, "");
+    if (seenTitles.has(normalized)) continue;
+    seenTitles.add(normalized);
     const estMinutes =
       typeof r.estMinutes === "number" && Number.isFinite(r.estMinutes)
         ? Math.min(600, Math.max(10, Math.round(r.estMinutes)))
@@ -18,7 +23,7 @@ export function normalizePlannedTasks(raw: unknown): PlannedTask[] {
         ? Math.round(priorityRaw)
         : 2;
     out.push({
-      title: r.title.trim().slice(0, 200),
+      title,
       ...(typeof r.notes === "string" && r.notes.trim()
         ? { notes: r.notes.trim().slice(0, 500) }
         : {}),

@@ -122,6 +122,22 @@ describe("POST /api/goals/:id/replan", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it("所有任务已完成时返回 400 而不是让 AI 发明新任务", async () => {
+    const goal = await createTestGoal("集成测试：全完成replan");
+    for (const t of goal.tasks) {
+      await patchTask(jsonReq(`/api/tasks/${t.id}`, "PATCH", { status: "done" }), {
+        params: Promise.resolve({ id: t.id }),
+      });
+    }
+    const res = await replan(jsonReq(`/api/goals/${goal.id}/replan`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { ok: boolean; error: string };
+    expect(json.ok).toBe(false);
+    expect(json.error).toContain("无需");
+  });
 });
 
 describe("DELETE /api/goals/:id", () => {

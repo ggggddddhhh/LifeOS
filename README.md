@@ -22,7 +22,8 @@ LLM_MODEL=gpt-4o-mini
 
 ```bash
 npm run db:push:test   # 初始化测试库（首次）
-npm run test           # vitest，19 个用例
+npm run test           # vitest 单元/集成测试，21 个用例
+npm run test:eval      # 真实 LLM 质量评测（需 DEEPSEEK_API_KEY，详见 docs/eval/）
 npm run build          # 生产构建验证
 ```
 

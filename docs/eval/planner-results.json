@@ -1,0 +1,616 @@
+{
+  "model": "deepseek-chat",
+  "ranAt": "2026-09-09T00:16:08.666Z",
+  "records": [
+    {
+      "goal": "30 天内学会 Rust 基础并写出一个 CLI 待办事项工具",
+      "deadline": "2026-10-09T00:15:41.611Z",
+      "daysLeft": 30,
+      "ok": true,
+      "latencyMs": 2261,
+      "tasks": [
+        {
+          "title": "安装 Rust 工具链并配置开发环境",
+          "notes": "安装 rustup，配置 VS Code 或类似编辑器，运行 hello world 验证",
+          "priority": 1,
+          "estMinutes": 60
+        },
+        {
+          "title": "学习 Rust 基础语法",
+          "notes": "变量、数据类型、函数、控制流、所有权与借用概念",
+          "priority": 1,
+          "estMinutes": 300
+        },
+        {
+          "title": "掌握结构体、枚举与模式匹配",
+          "notes": "通过小练习巩固复合类型的使用",
+          "priority": 1,
+          "estMinutes": 240
+        },
+        {
+          "title": "学习错误处理与常用集合",
+          "notes": "Result/Option、Vec、HashMap 等",
+          "priority": 2,
+          "estMinutes": 180
+        },
+        {
+          "title": "学习文件 I/O 与命令行参数解析",
+          "notes": "std::fs 和 clap 或 std::env 处理用户输入",
+          "priority": 2,
+          "estMinutes": 180
+        },
+        {
+          "title": "设计 CLI 待办事项工具的数据模型",
+          "notes": "定义任务结构、存储格式（如 JSON）及增删改查逻辑",
+          "priority": 2,
+          "estMinutes": 120
+        },
+        {
+          "title": "实现 CLI 待办事项工具核心功能",
+          "notes": "编写代码实现添加、列出、完成、删除任务，并持久化到文件",
+          "priority": 1,
+          "estMinutes": 300
+        },
+        {
+          "title": "测试、优化并完善文档",
+          "notes": "编写单元测试，处理边界情况，添加 README 使用说明",
+          "priority": 3,
+          "estMinutes": 180
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 52,
+      "overload": false
+    },
+    {
+      "goal": "三个月内减重 8 公斤",
+      "deadline": "2026-12-08T00:15:43.874Z",
+      "daysLeft": 90,
+      "ok": true,
+      "latencyMs": 3129,
+      "tasks": [
+        {
+          "title": "制定减重计划和基线数据记录",
+          "notes": "记录初始体重、体脂率、腰围等数据，设定每周减重目标（约0.6公斤/周），并规划饮食和运动框架",
+          "priority": 1,
+          "estMinutes": 90
+        },
+        {
+          "title": "设计并执行每周4次有氧与力量训练计划",
+          "notes": "结合久坐办公特点，安排如快走、慢跑、游泳等有氧运动，配合基础力量训练，每次约45-60分钟",
+          "priority": 1,
+          "estMinutes": 240
+        },
+        {
+          "title": "调整饮食结构，控制热量摄入",
+          "notes": "咨询或参考营养指南，制定高蛋白、高纤维、低油低糖的饮食方案，每日热量缺口约500千卡",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "建立每周体重与饮食运动记录习惯",
+          "notes": "使用App或日志记录每日饮食、运动及每周体重变化，便于追踪进度并及时调整",
+          "priority": 2,
+          "estMinutes": 60
+        },
+        {
+          "title": "每两周评估进度并调整计划",
+          "notes": "根据实际减重速度（理想每周0.5-1公斤），调整运动强度或饮食热量，避免平台期",
+          "priority": 2,
+          "estMinutes": 45
+        },
+        {
+          "title": "处理久坐办公的日常活动增量",
+          "notes": "增加日常步数（如每小时起身活动、步行通勤），目标每日额外消耗200-300千卡",
+          "priority": 2,
+          "estMinutes": 30
+        },
+        {
+          "title": "设置奖励机制与心理支持",
+          "notes": "每减重2公斤设置非食物奖励，并寻找朋友或社群支持，保持长期动力",
+          "priority": 3,
+          "estMinutes": 30
+        }
+      ],
+      "taskCount": 7,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 7,
+      "overload": false
+    },
+    {
+      "goal": "两周内上线个人博客网站",
+      "deadline": "2026-09-23T00:15:47.004Z",
+      "daysLeft": 14,
+      "ok": true,
+      "latencyMs": 2859,
+      "tasks": [
+        {
+          "title": "规划博客内容结构与技术方案",
+          "notes": "确定博客栏目、文章分类，选定 Next.js 版本及 UI 框架（如 Tailwind）",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "初始化 Next.js 项目并配置基础环境",
+          "notes": "使用 create-next-app 创建项目，配置 TypeScript、ESLint、路径别名等",
+          "priority": 1,
+          "estMinutes": 90
+        },
+        {
+          "title": "设计并实现博客页面布局与组件",
+          "notes": "包括首页、文章列表页、文章详情页、关于页，以及导航和页脚组件",
+          "priority": 1,
+          "estMinutes": 240
+        },
+        {
+          "title": "集成 Markdown 文章管理与渲染",
+          "notes": "支持本地 Markdown 文件或 CMS，实现文章元数据解析和代码高亮",
+          "priority": 1,
+          "estMinutes": 180
+        },
+        {
+          "title": "配置域名、DNS 与 Vercel 部署",
+          "notes": "将域名绑定到 Vercel 项目，配置 HTTPS 和重定向规则",
+          "priority": 2,
+          "estMinutes": 60
+        },
+        {
+          "title": "编写并导入至少 3 篇示例文章",
+          "notes": "填充内容以测试页面展示效果，确保排版和响应式正常",
+          "priority": 2,
+          "estMinutes": 120
+        },
+        {
+          "title": "进行 SEO 优化与性能检查",
+          "notes": "添加 meta 标签、sitemap、RSS，使用 Lighthouse 检查并优化加载速度",
+          "priority": 2,
+          "estMinutes": 90
+        },
+        {
+          "title": "测试、修复问题并正式上线",
+          "notes": "在多种设备上测试功能，修复 bug，确认域名生效后发布上线",
+          "priority": 1,
+          "estMinutes": 150
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 75,
+      "overload": false
+    },
+    {
+      "goal": "准备数据分析师岗位面试并拿到 offer",
+      "deadline": "2026-10-24T00:15:49.863Z",
+      "daysLeft": 45,
+      "ok": true,
+      "latencyMs": 2714,
+      "tasks": [
+        {
+          "title": "调研目标公司与岗位要求",
+          "notes": "收集目标公司面试流程、岗位JD、技能要求，明确考察重点",
+          "priority": 1,
+          "estMinutes": 180
+        },
+        {
+          "title": "复习数据分析核心技能",
+          "notes": "SQL、Python(pandas/numpy)、统计学、数据可视化等高频考点",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "整理个人项目与案例集",
+          "notes": "精选2-3个数据分析项目，梳理业务背景、分析过程与业务价值",
+          "priority": 1,
+          "estMinutes": 300
+        },
+        {
+          "title": "模拟面试与行为问题准备",
+          "notes": "练习自我介绍、项目深挖、业务场景题及行为面试问题",
+          "priority": 2,
+          "estMinutes": 240
+        },
+        {
+          "title": "准备业务分析与案例题",
+          "notes": "练习常见业务分析框架，如漏斗分析、留存分析、A/B测试等",
+          "priority": 2,
+          "estMinutes": 240
+        },
+        {
+          "title": "制作并打磨简历与作品集",
+          "notes": "针对岗位定制简历，突出量化成果，准备作品集链接或PDF",
+          "priority": 2,
+          "estMinutes": 180
+        },
+        {
+          "title": "进行模拟面试演练",
+          "notes": "找朋友或导师进行至少2次全真模拟，获取反馈并改进",
+          "priority": 3,
+          "estMinutes": 180
+        },
+        {
+          "title": "制定面试时间线与投递计划",
+          "notes": "规划投递节奏、跟进流程，预留复盘与调整时间",
+          "priority": 3,
+          "estMinutes": 120
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 45,
+      "overload": false
+    },
+    {
+      "goal": "一年内存下 5 万元",
+      "deadline": "2027-09-09T00:15:52.578Z",
+      "daysLeft": 365,
+      "ok": true,
+      "latencyMs": 2744,
+      "tasks": [
+        {
+          "title": "制定储蓄计划与预算",
+          "notes": "分析月收入1.5万，设定每月储蓄目标约4167元，制定详细收支预算表，明确必要开支与可削减项",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "开设专用储蓄账户",
+          "notes": "开设高利率储蓄账户，设置自动转账功能，确保每月发薪日自动转入储蓄金额",
+          "priority": 1,
+          "estMinutes": 60
+        },
+        {
+          "title": "削减非必要开支",
+          "notes": "审查并减少餐饮、娱乐、订阅等非必要支出，目标每月节省至少1000元",
+          "priority": 2,
+          "estMinutes": 180
+        },
+        {
+          "title": "建立应急基金",
+          "notes": "先储蓄3-6个月生活费的应急基金，约2-3万元，作为储蓄计划的安全垫，避免中途动用储蓄",
+          "priority": 1,
+          "estMinutes": 90
+        },
+        {
+          "title": "增加额外收入来源",
+          "notes": "利用业余时间开展副业或兼职，如自由职业、线上教学等，目标每月额外增收2000-3000元",
+          "priority": 2,
+          "estMinutes": 240
+        },
+        {
+          "title": "每月复盘与调整",
+          "notes": "每月末检查储蓄进度，对比预算执行情况，调整下月计划，确保年度目标5万元达成",
+          "priority": 2,
+          "estMinutes": 60
+        },
+        {
+          "title": "投资增值储蓄资金",
+          "notes": "在储蓄达到一定规模后，考虑将部分资金投入低风险理财产品，如货币基金或定期存款，提高收益",
+          "priority": 3,
+          "estMinutes": 120
+        }
+      ],
+      "taskCount": 7,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 2,
+      "overload": false
+    },
+    {
+      "goal": "一个月内完成一部 3 万字中篇小说初稿",
+      "deadline": "2026-10-09T00:15:55.323Z",
+      "daysLeft": 30,
+      "ok": true,
+      "latencyMs": 2153,
+      "tasks": [
+        {
+          "title": "制定小说大纲与章节规划",
+          "notes": "确定主题、人物、冲突及章节结构，确保3万字分配合理",
+          "priority": 1,
+          "estMinutes": 300
+        },
+        {
+          "title": "完成前5章初稿（约5000字）",
+          "notes": "集中写作，保持连贯性，暂不修改",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "完成第6-10章初稿（约5000字）",
+          "notes": "推进情节发展，解决中期转折",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "完成第11-15章初稿（约5000字）",
+          "notes": "深化人物弧光，铺垫高潮",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "完成第16-20章初稿（约5000字）",
+          "notes": "处理高潮与关键冲突",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "完成第21-25章初稿（约5000字）",
+          "notes": "收束主线，解决次要情节",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "完成第26-30章初稿（约5000字）",
+          "notes": "撰写结局，确保主题呼应",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "整体审阅与衔接修正",
+          "notes": "检查章节连贯性、节奏与字数，做必要调整",
+          "priority": 2,
+          "estMinutes": 300
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 140,
+      "overload": false
+    },
+    {
+      "goal": "两周内完成跨城搬家并安顿好新家",
+      "deadline": "2026-09-23T00:15:57.476Z",
+      "daysLeft": 14,
+      "ok": true,
+      "latencyMs": 2288,
+      "tasks": [
+        {
+          "title": "制定搬家计划与预算",
+          "notes": "列出所有物品、联系搬家公司、估算费用并预定搬家日期",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "整理与打包物品",
+          "notes": "分类打包，标记易碎品，丢弃或捐赠不需要的物品",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "办理地址变更与生活服务迁移",
+          "notes": "更新银行、水电煤、网络、快递等地址，安排新家开通服务",
+          "priority": 2,
+          "estMinutes": 90
+        },
+        {
+          "title": "安排跨城运输与保险",
+          "notes": "确认搬家公司细节，购买运输保险，确保物品安全",
+          "priority": 1,
+          "estMinutes": 60
+        },
+        {
+          "title": "新家清洁与基础布置",
+          "notes": "提前或到达后清洁新家，检查设施，规划房间布局",
+          "priority": 2,
+          "estMinutes": 180
+        },
+        {
+          "title": "完成搬家并验收物品",
+          "notes": "监督装卸，核对清单，确认无损坏或遗漏",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "安顿新家与社区融入",
+          "notes": "拆包整理，购买必要家具，熟悉周边设施如超市、医院",
+          "priority": 2,
+          "estMinutes": 300
+        }
+      ],
+      "taskCount": 7,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 105,
+      "overload": false
+    },
+    {
+      "goal": "为团队 10 人项目的 GitHub 仓库搭建 CI/CD 流水线",
+      "deadline": "2026-09-30T00:15:59.764Z",
+      "daysLeft": 21,
+      "ok": true,
+      "latencyMs": 2925,
+      "tasks": [
+        {
+          "title": "分析项目结构与现有构建配置",
+          "notes": "检查仓库语言、框架、依赖管理及现有脚本，确定 CI/CD 需求",
+          "priority": 1,
+          "estMinutes": 90
+        },
+        {
+          "title": "选择并配置 CI 服务",
+          "notes": "根据团队偏好（如 GitHub Actions）创建基础流水线文件，设置触发条件",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "编写自动化构建与单元测试步骤",
+          "notes": "集成构建命令、运行测试并生成报告，确保失败时阻断流程",
+          "priority": 1,
+          "estMinutes": 150
+        },
+        {
+          "title": "配置代码质量检查与静态分析",
+          "notes": "加入 lint、格式检查或安全扫描工具，设置质量门槛",
+          "priority": 2,
+          "estMinutes": 90
+        },
+        {
+          "title": "设置部署环境与发布策略",
+          "notes": "定义 staging/production 环境，配置构建产物上传及自动部署（如 SSH、容器）",
+          "priority": 2,
+          "estMinutes": 120
+        },
+        {
+          "title": "添加通知与失败告警机制",
+          "notes": "集成邮件、Slack 等通知，确保构建状态及时传达",
+          "priority": 3,
+          "estMinutes": 60
+        },
+        {
+          "title": "编写文档并培训团队成员",
+          "notes": "创建 README 或 wiki 说明流水线用法，组织简短演示",
+          "priority": 2,
+          "estMinutes": 90
+        },
+        {
+          "title": "测试并优化流水线性能",
+          "notes": "运行端到端测试，调整缓存、并行任务以缩短耗时",
+          "priority": 3,
+          "estMinutes": 120
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 40,
+      "overload": false
+    },
+    {
+      "goal": "100 天内雅思总分考到 6.5",
+      "deadline": "2026-12-18T00:16:02.689Z",
+      "daysLeft": 100,
+      "ok": true,
+      "latencyMs": 3240,
+      "tasks": [
+        {
+          "title": "制定雅思备考计划与目标拆解",
+          "notes": "根据当前5.5分基础，设定各科目标分数，制定100天每日学习时间表",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "强化词汇与语法基础",
+          "notes": "每天背诵50个雅思核心词汇，系统复习语法薄弱点，重点提升写作和口语常用表达",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "专项提升听力与阅读",
+          "notes": "每周完成2套剑桥雅思真题，分析错题原因，训练快速定位和同义替换能力",
+          "priority": 2,
+          "estMinutes": 600
+        },
+        {
+          "title": "系统训练写作能力",
+          "notes": "每周精写2篇大作文和2篇小作文，重点攻克Task 2论证逻辑和Task 1数据描述，请老师或AI批改",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "突破口语表达瓶颈",
+          "notes": "每天进行15分钟口语自练，积累话题词汇，每周参加2次线上口语模拟，克服紧张和表达卡顿",
+          "priority": 1,
+          "estMinutes": 600
+        },
+        {
+          "title": "定期模考与复盘调整",
+          "notes": "每两周进行一次全真模拟考试，记录各科分数变化，针对薄弱环节调整学习策略",
+          "priority": 2,
+          "estMinutes": 600
+        },
+        {
+          "title": "考前冲刺与心理调适",
+          "notes": "最后两周集中复习高频考点和错题本，进行2次完整模拟，调整作息和考试心态",
+          "priority": 1,
+          "estMinutes": 480
+        }
+      ],
+      "taskCount": 7,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 36,
+      "overload": false
+    },
+    {
+      "goal": "一个月后组织一场 50 人参加的公司内部技术分享会",
+      "deadline": "2026-10-09T00:16:05.929Z",
+      "daysLeft": 30,
+      "ok": true,
+      "latencyMs": 2736,
+      "tasks": [
+        {
+          "title": "确定分享会主题与议程框架",
+          "notes": "结合公司技术方向与员工兴趣，确定3-5个候选主题，并设计初步议程结构",
+          "priority": 1,
+          "estMinutes": 120
+        },
+        {
+          "title": "预订场地并确认设备支持",
+          "notes": "根据50人规模，预订可容纳的会议室或外部场地，确认投影、音响、网络等设备",
+          "priority": 1,
+          "estMinutes": 90
+        },
+        {
+          "title": "邀请并确认分享嘉宾",
+          "notes": "从内部或外部邀请2-4位演讲者，协调时间并收集演讲题目与简介",
+          "priority": 1,
+          "estMinutes": 150
+        },
+        {
+          "title": "发布活动通知并开放报名",
+          "notes": "通过邮件或内部平台发布活动详情，设置报名链接，跟踪报名人数至50人上限",
+          "priority": 2,
+          "estMinutes": 90
+        },
+        {
+          "title": "准备活动物料与现场布置",
+          "notes": "设计并打印签到表、名牌、反馈问卷，准备茶歇，规划现场座位与指引",
+          "priority": 2,
+          "estMinutes": 180
+        },
+        {
+          "title": "进行彩排与技术测试",
+          "notes": "活动前一周组织演讲者彩排，测试所有演示文件与设备，确保流程顺畅",
+          "priority": 2,
+          "estMinutes": 120
+        },
+        {
+          "title": "执行活动并收集反馈",
+          "notes": "活动当天负责签到、主持、时间控制与现场协调，结束后收集反馈问卷并总结",
+          "priority": 1,
+          "estMinutes": 300
+        }
+      ],
+      "taskCount": 7,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 35,
+      "overload": false
+    }
+  ]
+}

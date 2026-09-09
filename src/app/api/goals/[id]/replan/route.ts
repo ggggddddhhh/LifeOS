@@ -12,6 +12,12 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     });
     if (!goal) return NextResponse.json({ ok: false, error: "目标不存在" }, { status: 404 });
 
+    // 没有未完成任务时直接短路，避免 LLM 凭空发明新任务（Phase 1.5 评测发现）
+    const openTasks = goal.tasks.filter((t) => t.status !== "done");
+    if (openTasks.length === 0) {
+      return NextResponse.json({ ok: false, error: "所有任务已完成，无需重新计划" }, { status: 400 });
+    }
+
     const daysLeft = goal.deadline
       ? Math.max(1, Math.ceil((goal.deadline.getTime() - Date.now()) / 86400000))
       : 14;

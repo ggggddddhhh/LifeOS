@@ -59,18 +59,24 @@ export class OpenAiCompatClient implements LlmClient {
   ) {}
 
   async complete(system: string, user: string): Promise<string> {
-    const res = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0.3,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: 0.3,
+        }),
+      });
+    } catch (e) {
+      // 网络层错误（DNS/断网/超时）统一包装，避免用户看到裸的 "fetch failed"
+      throw new Error(`LLM 请求失败（网络错误）: ${e instanceof Error ? e.message : String(e)}`);
+    }
     if (!res.ok) throw new Error(`LLM 请求失败: ${res.status} ${await res.text()}`);
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const content = data.choices?.[0]?.message?.content;
@@ -91,9 +97,9 @@ const PLANNER_SYSTEM = `你是项目管理专家。把用户目标拆解为 3-8 
 {"tasks":[{"title":"...","notes":"可选说明","priority":1,"estMinutes":60}]}
 priority 取 1(高)/2(中)/3(低)，estMinutes 为预计分钟数(10-600)。只输出 JSON，不要任何其他文字。`;
 
-const REPLANNER_SYSTEM = `REPLANNER. 你是项目复盘专家。根据目标、剩余天数和任务完成情况，为所有未完成任务生成新计划。输出严格的 JSON：
+const REPLANNER_SYSTEM = `REPLANNER. 你是项目复盘专家。根据目标、剩余天数和任务完成情况，为所有未完成任务生成新计划。硬性约束：新计划所有任务的 estMinutes 总和不得超过 剩余天数×480 分钟（每天最多按 8 小时有效工作时间排）；放不下时必须合并任务或砍掉低优先级任务，并在 reason 中说明放弃了什么。输出严格的 JSON：
 {"reason":"一句话说明调整逻辑","tasks":[{"title":"...","priority":1,"estMinutes":60}]}
-可合并/拆分/重排未完成任务，估时需匹配剩余天数。只输出 JSON，不要任何其他文字。`;
+priority 取 1(高)/2(中)/3(低)。只输出 JSON，不要任何其他文字。`;
 
 export async function planGoal(input: PlanGoalInput): Promise<PlannedTask[]> {
   const client = getLlmClient();
