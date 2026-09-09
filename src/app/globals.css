@@ -27,6 +27,14 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-warning: var(--warning);
+  --color-warning-fg: var(--warning-fg);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-info: var(--info);
+  --color-info-fg: var(--info-fg);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -72,7 +80,15 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
+  --success: oklch(0.58 0.13 155);
+  --success-fg: oklch(0.985 0 0);
+  --warning: oklch(0.72 0.14 70);
+  --warning-fg: oklch(0.25 0 0);
+  --danger: oklch(0.577 0.245 27.325);
+  --danger-fg: oklch(0.985 0 0);
+  --info: oklch(0.6 0.1 240);
+  --info-fg: oklch(0.985 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -102,12 +118,15 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
+  --success: oklch(0.7 0.13 155);
+  --success-fg: oklch(0.15 0 0);
+  --warning: oklch(0.78 0.13 70);
+  --warning-fg: oklch(0.2 0 0);
+  --danger: oklch(0.704 0.191 22.216);
+  --danger-fg: oklch(0.15 0 0);
+  --info: oklch(0.72 0.09 240);
+  --info-fg: oklch(0.15 0 0);
+  --sidebar: oklch(0.18 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -126,5 +145,65 @@
   }
   html {
     @apply font-sans;
+  }
+}
+/* ---------------- UI Redesign：全局细节与可访问性 ---------------- */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  /* 键盘可达性：focus-visible 全局可见（不用 :focus 避免鼠标点击污染） */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--accent);
+  }
+}
+
+@layer utilities {
+  /* 数字统一等宽（进度/时长/时间戳） */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* 出现动效：150–250ms 克制位移 */
+  .animate-rise {
+    animation: rise 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .animate-fade {
+    animation: fade 150ms ease-out;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

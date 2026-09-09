@@ -1,136 +1,142 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { GoalForm } from "@/components/goal-form";
-import { GoalBoard, type GoalView } from "@/components/goal-board";
-import { CalendarView } from "@/components/calendar-view";
-import type { Envelope, PlanDiff, TaskStatus } from "@/lib/types";
+import { useCallback } from "react";
+import { CalendarCheck2, ListTodo, Sparkles, Sun } from "lucide-react";
+import { GoalCreateDialog } from "@/components/goals/goal-create-dialog";
+import { FocusGoal, RiskSignals } from "@/components/today/focus-goal";
+import { TaskRow } from "@/components/today/task-row";
+import { EmptyState, ErrorState, ListSkeleton } from "@/components/shared/states";
+import { useGoals, type GoalView, type TaskView } from "@/lib/ui-data";
+import type { TaskStatus } from "@/lib/types";
 
-export default function Home() {
-  const [goals, setGoals] = useState<GoalView[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"board" | "calendar">("board");
-  const [replanInfo, setReplanInfo] = useState<Record<string, { reason: string; diff: PlanDiff }>>({});
-  const [busyGoalId, setBusyGoalId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function todayStr(): string {
+  return new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+}
 
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/goals");
-    const json = (await res.json()) as Envelope<GoalView[]>;
-    if (json.ok) setGoals(json.data);
-    else setError(json.error);
-  }, []);
+function isToday(iso?: string | null): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
 
-  useEffect(() => {
-    refresh().finally(() => setLoading(false));
-  }, [refresh]);
+/** Today Dashboard：日期与进度 → 风险信号 → 当前 Goal 焦点 → 今日/进行中任务。 */
+export default function TodayPage() {
+  const { goals, loading, error, refresh, setError } = useGoals();
 
-  async function createGoal(v: { title: string; description: string; deadline: string }) {
-    setError(null);
-    const res = await fetch("/api/goals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(v),
-    });
-    const json = (await res.json()) as Envelope<GoalView>;
-    if (!json.ok) {
-      setError(json.error);
-      return;
-    }
-    await refresh();
-  }
-
-  async function updateTask(taskId: string, status: TaskStatus) {
-    setGoals((prev) =>
-      prev.map((g) => ({
-        ...g,
-        tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, status } : t)),
-      })),
-    );
-    const res = await fetch(`/api/tasks/${taskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) {
-      setError("更新任务失败");
-      await refresh();
-    }
-  }
-
-  async function replan(goalId: string) {
-    setBusyGoalId(goalId);
-    setError(null);
-    try {
-      const res = await fetch(`/api/goals/${goalId}/replan`, { method: "POST" });
-      const json = (await res.json()) as Envelope<{ reason: string; diff: PlanDiff; goal: GoalView }>;
-      if (!json.ok) {
-        setError(json.error);
-        return;
+  const onStatusChange = useCallback(
+    async (taskId: string, status: TaskStatus) => {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error();
+        refresh();
+      } catch {
+        setError("更新任务失败");
       }
-      setReplanInfo((prev) => ({
-        ...prev,
-        [goalId]: { reason: json.data.reason, diff: json.data.diff },
-      }));
-      await refresh();
-    } finally {
-      setBusyGoalId(null);
+    },
+    [refresh, setError],
+  );
+
+  const active = goals.filter((g) => g.tasks.some((t) => t.status !== "done"));
+  const focus = active[0];
+
+  const dueToday: { task: TaskView; goal: GoalView }[] = [];
+  const doing: { task: TaskView; goal: GoalView }[] = [];
+  for (const g of goals) {
+    for (const t of g.tasks) {
+      if (t.status === "done") continue;
+      if (t.dueDate && isToday(t.dueDate)) dueToday.push({ task: t, goal: g });
+      if (t.status === "in_progress") doing.push({ task: t, goal: g });
     }
   }
-
-  async function deleteGoal(goalId: string) {
-    await fetch(`/api/goals/${goalId}`, { method: "DELETE" });
-    await refresh();
-  }
+  const doneToday = goals.flatMap((g) => g.tasks).filter((t) => t.status === "done").length;
+  const allTotal = goals.flatMap((g) => g.tasks).length;
+  const abbr = (g: GoalView) => (g.title.length > 10 ? `${g.title.slice(0, 10)}…` : g.title);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">LifeOS</h1>
-        <div className="flex gap-1">
-          <Button size="sm" variant={view === "board" ? "default" : "ghost"} onClick={() => setView("board")}>
-            看板
-          </Button>
-          <Button size="sm" variant={view === "calendar" ? "default" : "ghost"} onClick={() => setView("calendar")}>
-            日历
-          </Button>
-        </div>
-      </div>
-      {error && (
-        <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-      )}
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="lg:sticky lg:top-8 lg:self-start">
-          <GoalForm onSubmit={createGoal} />
-        </div>
-        <div className="space-y-6">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">加载中…</p>
-          ) : view === "calendar" ? (
-            goals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">还没有目标，无法展示日历。</p>
-            ) : (
-              <CalendarView goals={goals} />
-            )
-          ) : goals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">还没有目标。在左侧输入一个目标，让 AI 帮你拆解成任务。</p>
-          ) : (
-            goals.map((g) => (
-              <GoalBoard
-                key={g.id}
-                goal={g}
-                onStatusChange={updateTask}
-                onReplan={replan}
-                onDelete={deleteGoal}
-                replanReason={replanInfo[g.id]?.reason}
-                replanDiff={replanInfo[g.id]?.diff}
-                busy={busyGoalId === g.id}
-              />
-            ))
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Sun className="size-3.5" aria-hidden />
+            {todayStr()}
+          </div>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight">Today</h1>
+          {!loading && !error && allTotal > 0 && (
+            <p className="tabular mt-1 text-xs text-muted-foreground">
+              累计完成 {doneToday}/{allTotal} · {active.length} 个进行中的目标
+            </p>
           )}
         </div>
-      </div>
-    </main>
+        <GoalCreateDialog onCreated={() => refresh()} />
+      </header>
+
+      {error && <ErrorState message={error} onRetry={refresh} />}
+      {loading ? (
+        <ListSkeleton rows={5} />
+      ) : goals.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title="从一个目标开始"
+          hint="描述你想完成的事，LifeOS 会拆解成带估时与排期的计划，并观察 GitHub 与日历的真实进展。"
+        />
+      ) : (
+        <>
+          {focus ? (
+            <section aria-label="当前目标">
+              <FocusGoal goal={focus} />
+            </section>
+          ) : (
+            <EmptyState icon={CalendarCheck2} title="所有目标都已完成" hint="创建下一个目标，继续保持节奏。" />
+          )}
+
+          {active.length > 1 && (
+            <section aria-label="其他进行中目标" className="space-y-1.5">
+              {active.slice(1, 3).map((g) => (
+                <FocusGoal key={g.id} goal={g} />
+              ))}
+            </section>
+          )}
+
+          <RiskSignals goals={goals} />
+
+          <section aria-label="今天到期">
+            <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <CalendarCheck2 className="size-3.5" aria-hidden />
+              今天到期（{dueToday.length}）
+            </h2>
+            {dueToday.length === 0 ? (
+              <p className="px-2 py-3 text-xs text-muted-foreground">今天没有截止的任务。</p>
+            ) : (
+              <div className="-mx-2">
+                {dueToday.map(({ task, goal }) => (
+                  <TaskRow key={task.id} task={task} goalAbbr={abbr(goal)} onStatusChange={onStatusChange} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section aria-label="进行中">
+            <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <ListTodo className="size-3.5" aria-hidden />
+              进行中（{doing.length}）
+            </h2>
+            {doing.length === 0 ? (
+              <p className="px-2 py-3 text-xs text-muted-foreground">没有正在进行的任务，从 Today 里开始一项。</p>
+            ) : (
+              <div className="-mx-2">
+                {doing.map(({ task, goal }) => (
+                  <TaskRow key={task.id} task={task} goalAbbr={abbr(goal)} onStatusChange={onStatusChange} />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
   );
 }

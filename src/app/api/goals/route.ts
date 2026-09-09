@@ -10,6 +10,8 @@ export async function GET() {
     where: { status: "active" },
     include: {
       tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { dependsOn: { select: { id: true, title: true } } } },
+      // UI Redesign：计划历史（Activity/Detail 数据源）——纯数据透出，无逻辑变更
+      versions: { orderBy: { revision: "desc" }, select: { id: true, revision: true, reason: true, diffJson: true, createdAt: true } },
     },
     orderBy: { createdAt: "desc" },
   });

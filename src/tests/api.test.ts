@@ -228,3 +228,30 @@ describe("DELETE /api/goals/:id", () => {
     expect(count).toBe(0);
   });
 });
+
+describe("GET /api/goals（UI Redesign：计划历史透出）", () => {
+  it("包含 versions（revision 倒序），供 Activity/Detail 使用", async () => {
+    const goal = await createTestGoal("带历史的目标");
+    await replan(jsonReq(`/api/goals/${goal.id}/replan`, "POST"), { params: Promise.resolve({ id: goal.id }) });
+    const res = await listGoals();
+    const json = (await res.json()) as { ok: boolean; data: { id: string; versions?: { revision: number; reason: string }[] }[] };
+    expect(json.ok).toBe(true);
+    const withVersions = json.data.find((g) => g.id === goal.id);
+    expect(withVersions?.versions?.length).toBeGreaterThanOrEqual(2);
+    expect(withVersions!.versions![0].revision).toBe(2);
+    expect(typeof withVersions!.versions![0].reason).toBe("string");
+  });
+});
+
+describe("GET /api/settings/calendar（agent 代理）", () => {
+  it("agent 不可达时结构化 502，不暴露内部细节", async () => {
+    process.env.AGENT_CORE_URL = "http://127.0.0.1:9";
+    const { GET } = await import("@/app/api/settings/calendar/route");
+    const res = await GET();
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { ok: boolean; error: string };
+    expect(body.ok).toBe(false);
+    expect(typeof body.error).toBe("string");
+    delete process.env.AGENT_CORE_URL;
+  });
+});

@@ -41,7 +41,7 @@ export function traceEvent(event: string, fields: Record<string, unknown>): void
   try {
     const path = resolve(process.env.LIFEOS_TRACE_PATH || "logs/web-trace.jsonl");
     mkdirSync(dirname(path), { recursive: true });
-    const row = { ts: new Date().toISOString(), event: event.slice(0, 64) };
+    const row: Record<string, unknown> = { ts: new Date().toISOString(), event: event.slice(0, 64) };
     for (const [k, v] of Object.entries(fields)) row[k] = sanitize(v);
     appendFileSync(path, JSON.stringify(row) + "\n", "utf8");
   } catch {
