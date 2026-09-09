@@ -38,6 +38,7 @@ class TestAnalyze:
         req = {
             "goalTitle": "g",
             "daysLeft": 2,
+            "declaredMinutesPerDay": [480, 480],  # Phase 12：声明层（策略）必传，容量 = 求和
             "tasks": [
                 {"title": "a", "status": "done", "estMinutes": 100, "priority": 1},
                 {"title": "b", "status": "todo", "estMinutes": 500, "priority": 1},
@@ -50,8 +51,20 @@ class TestAnalyze:
         assert a["openCount"] == 2
         assert a["doneCount"] == 1
         assert a["openTotalMinutes"] == 1100
-        assert a["capacityMinutes"] == 960
+        assert a["capacityMinutes"] == 960  # 480+480（声明层求和）
         assert a["overloaded"] is True
+
+    def test_replan_zero_declared_capacity(self):
+        # Phase 12：0 容量（用户明确不排期）→ 容量 0、必超载
+        req = {
+            "goalTitle": "g",
+            "daysLeft": 2,
+            "declaredMinutesPerDay": [0, 0],
+            "tasks": [{"title": "a", "status": "todo", "estMinutes": 30, "priority": 1}],
+        }
+        state = analyze_node({"kind": "replan", "request": req})
+        assert state["analysis"]["capacityMinutes"] == 0
+        assert state["analysis"]["overloaded"] is True
 
 
 # ---------------------------------------------------------------- extract_json

@@ -205,7 +205,7 @@ def fake_server(monkeypatch, tmp_path):
 
 
 def _draft(key="g1:1:t1:1", start="2027-03-10T01:00:00Z", end="2027-03-10T02:00:00Z"):
-    return CalendarDraftItem(taskId="t1", taskTitle="任务A", startUtc=start, endUtc=end,
+    return CalendarDraftItem(taskId="t1", taskTitle="任务A", calendarId="primary", startUtc=start, endUtc=end,
                              timezone="Asia/Shanghai", actionType="create", idempotencyKey=key)
 
 

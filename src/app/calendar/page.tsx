@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/shared/states";
 import { useGoals } from "@/lib/ui-data";
@@ -28,9 +28,10 @@ interface CalTask {
 
 /** 全局月历：任务排期 + 日负载微条；周期任务横跨；未排期折叠区。 */
 export default function CalendarPage() {
-  const { goals, loading, error, refresh } = useGoals();
+  const { goals, policy, loading, error, refresh } = useGoals();
   const [monthOffset, setMonthOffset] = useState(0);
   const [showUnscheduled, setShowUnscheduled] = useState(false);
+  const dailyCap = policy.dailyCapacityMinutes;
 
   const tasks = useMemo<CalTask[]>(
     () =>
@@ -63,6 +64,25 @@ export default function CalendarPage() {
   const todayMs = startOfDay(new Date());
   const unscheduled = tasks.filter((t) => t.dueMs === null && t.status !== "done");
   const monthLabel = view.toLocaleDateString("zh-CN", { year: "numeric", month: "long" });
+
+  // 已写入日历的真实事件（executed/duplicate_skipped 均表示日历上存在）
+  const writtenEvents = useMemo(
+    () =>
+      goals.flatMap((g) =>
+        (g.calDrafts ?? []).map((d) => ({
+          id: d.id,
+          goalId: g.id,
+          title: d.taskTitle,
+          startMs: startOfDay(new Date(d.proposedStart)),
+          startLabel: new Date(d.proposedStart).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+        })),
+      ),
+    [goals],
+  );
+
+  function eventsOnDay(ms: number) {
+    return writtenEvents.filter((e) => e.startMs === ms);
+  }
 
   function tasksOnDay(ms: number): CalTask[] {
     return tasks.filter((t) => {
@@ -108,8 +128,8 @@ export default function CalendarPage() {
               if (ms === null) return <div key={i} className="min-h-20 border-b border-r bg-muted/20 md:min-h-24" />;
               const dayTasks = tasksOnDay(ms);
               const load = dayTasks.filter((t) => t.status !== "done").reduce((s, t) => s + t.estMinutes, 0);
-              const loadPct = Math.min(100, (load / 480) * 100);
-              const over = load > 480;
+              const loadPct = Math.min(100, (load / dailyCap) * 100);
+              const over = load > dailyCap;
               return (
                 <div key={i} className={cn("min-h-20 border-b border-r p-1.5 md:min-h-24", ms === todayMs && "bg-accent/40")}>
                   <div className="flex items-center justify-between">
@@ -122,12 +142,27 @@ export default function CalendarPage() {
                       {new Date(ms).getDate()}
                     </span>
                     {load > 0 && (
-                      <span className={cn("tabular text-[10px]", over ? "font-semibold text-danger" : "text-muted-foreground")}>
+                      <span
+                        className={cn("tabular text-[10px]", over ? "font-semibold text-danger" : "text-muted-foreground")}
+                        title={`当天计划完成 ${dayTasks.length} 项任务，预估共 ${Math.round(load / 60)} 小时（参考线 ${Math.round(dailyCap / 60)}h/天，可在设置中调整）`}
+                      >
+                        {over ? "超载 " : ""}
                         {Math.round(load / 60)}h
                       </span>
                     )}
                   </div>
                   <div className="mt-0.5 space-y-0.5">
+                    {eventsOnDay(ms).slice(0, 2).map((e) => (
+                      <Link
+                        key={`e-${e.id}`}
+                        href={`/goals/${e.goalId}`}
+                        title={`已写入日历：${e.title}（${e.startLabel}）`}
+                        className="flex items-center gap-1 truncate rounded bg-success/10 px-1 py-0.5 text-[10px] leading-tight text-success transition-colors duration-150 hover:bg-success/20"
+                      >
+                        <CalendarCheck className="size-2.5 shrink-0" aria-hidden />
+                        <span className="truncate">{e.title}</span>
+                      </Link>
+                    ))}
                     {dayTasks.slice(0, 2).map((t) => (
                       <Link
                         key={t.id}
@@ -145,8 +180,10 @@ export default function CalendarPage() {
                         {t.title}
                       </Link>
                     ))}
-                    {dayTasks.length > 2 && (
-                      <span className="block px-1 text-[10px] text-muted-foreground">+{dayTasks.length - 2}</span>
+                    {dayTasks.length + eventsOnDay(ms).length > 2 && (
+                      <span className="block px-1 text-[10px] text-muted-foreground">
+                        还有 {dayTasks.length + eventsOnDay(ms).length - 2} 项
+                      </span>
                     )}
                   </div>
                   {load > 0 && (
@@ -158,8 +195,8 @@ export default function CalendarPage() {
               );
             })}
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            单次任务显示在计划完成日；周期任务从开始日横跨到结束日；每日负载按 8h 基准着色。
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            灰色条目 = 任务计划完成日；绿色 ✓ = 已写入你日历的事件；右上角数字 = 当天计划完成任务的预估总时长（超过每日可投入 {Math.round(dailyCap / 60)}h 标记为超载，说明排期需要调整）。
           </p>
 
           {unscheduled.length > 0 && (

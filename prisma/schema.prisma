@@ -22,6 +22,23 @@ model Goal {
   calWrites   CalendarWrite[]
 }
 
+/// Phase 12：Personal Planning Settings（单例 id="default"）。
+/// 默认值 = 旧行为逐字节一致（全周工作、08:00–20:00 窗、480m/天、Asia/Shanghai、primary），
+/// 旧用户零迁移成本：行不存在时由 getPlanningPolicy() 惰性种子。
+/// 默认值的唯一来源是 TS 的 policy-core；Python 全部经请求字段接收（必传，无本地默认）。
+model PlanningSettings {
+  id                   String   @id @default("default")
+  dailyCapacityMinutes Int      @default(480) // 每日可投入分钟数（0 = 明确不排期）
+  workdays             String   @default("1,2,3,4,5,6,7") // ISO 星期（1=一 … 7=日），逗号分隔
+  workStartMinute      Int      @default(480) // 08:00（墙钟分钟，规划时区）
+  workEndMinute        Int      @default(1200) // 20:00
+  timezone             String   @default("Asia/Shanghai") // IANA；Instant 语义不变，仅影响墙钟换算
+  calendarId           String   @default("primary") // Calendar 写入目标日历
+  defaultEstMinutes    Int      @default(60) // 手动建任务默认时长
+  defaultPriority      Int      @default(2) // 手动建任务默认优先级
+  updatedAt            DateTime @updatedAt
+}
+
 model Task {
   id           String    @id @default(cuid())
   goalId       String
@@ -32,6 +49,7 @@ model Task {
   priority     Int       @default(2) // 1 高 2 中 3 低
   estMinutes   Int       @default(60)
   order        Int       @default(0)
+  origin       String    @default("ai") // ai | user（user = 用户创建或手动改过：重新规划不得改写）
   // Phase 2：调度与周期
   startDate    DateTime? // 执行窗口起点（当日零点）
   dueDate      DateTime? // 计划完成日
@@ -46,13 +64,14 @@ model Task {
 }
 
 model PlanVersion {
-  id        String   @id @default(cuid())
-  goalId    String
-  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  revision  Int
-  reason    String
-  diffJson  String // JSON.stringify(PlanDiff)
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  goalId       String
+  goal         Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  revision     Int
+  reason       String
+  diffJson     String // JSON.stringify(PlanDiff)
+  snapshotJson String? // 应用前未完成任务快照（title/status/est/due/deps），供撤销重排恢复
+  createdAt    DateTime @default(now())
 
   @@unique([goalId, revision])
 }

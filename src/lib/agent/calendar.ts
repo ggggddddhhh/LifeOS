@@ -51,12 +51,17 @@ async function post<T>(path: string, body: unknown, timeoutMs = Number(process.e
  * 但会让 TS 侧丢失结果与落库，制造"结果未知"恢复负担。 */
 const EXECUTE_TIMEOUT_MS = Number(process.env.AGENT_EXECUTE_TIMEOUT_MS ?? 180_000);
 
-/** Draft Builder：只读排期，永不写。 */
+/** Draft Builder：只读排期，永不写。策略字段必传（Phase 12 单源：TS PlanningSettings）。 */
 export async function buildCalendarDrafts(req: {
   goalId: string;
   planVersion: number;
   daysLeft: number;
   timezone: string;
+  workdays: number[];
+  workStartMinute: number;
+  workEndMinute: number;
+  dailyCapMinutes: number;
+  calendarId: string;
   tasks: { taskId: string; title: string; estMinutes: number; priority: number; status?: string; durationDays?: number | null }[];
 }, runId?: string): Promise<DraftBuildResult> {
   return post<DraftBuildResult>("/v1/calendar/drafts", req, Number(process.env.AGENT_TIMEOUT_MS ?? 30_000), runId);

@@ -48,7 +48,7 @@ export function writeStatusBadge(status: string): { tone: Tone; label: string } 
     case "executed":
       return { tone: "success", label: "已写入日历" };
     case "duplicate_skipped":
-      return { tone: "neutral", label: "幂等跳过" };
+      return { tone: "neutral", label: "已写入过，跳过" };
     case "stale_conflict":
       return { tone: "warning", label: "时段冲突" };
     case "failed":

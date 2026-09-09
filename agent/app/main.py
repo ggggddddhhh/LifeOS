@@ -170,7 +170,16 @@ def calendar_drafts(req: DraftBuildRequest, calendar: CalendarClient | None = De
         except Exception:  # noqa: BLE001 —— 读失败按无日历处理（不阻断草稿）
             trace("cal_facts", ok=False, error_code="exception")
             busy = []
-    drafts = build_drafts(req.tasks, req.daysLeft, busy, req.goalId, req.planVersion, req.timezone)
+    if req.workStartMinute >= req.workEndMinute:
+        raise AgentError("CAL_INVALID_POLICY", "工作开始时间必须早于结束时间", status_code=400, retryable=False)
+    drafts = build_drafts(
+        req.tasks, req.daysLeft, busy, req.goalId, req.planVersion, req.timezone,
+        workdays=set(req.workdays),
+        work_start_minute=req.workStartMinute,
+        work_end_minute=req.workEndMinute,
+        daily_cap_minutes=req.dailyCapMinutes,
+        calendar_id=req.calendarId,
+    )
     placed_ids = {d.taskId for d in drafts}
     unplaced = [t["taskId"] for t in req.tasks if t.get("status", "todo") != "done" and t["taskId"] not in placed_ids]
     return DraftBuildResponse(drafts=drafts, unplacedTaskIds=unplaced)

@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { agentReplanGoal, recentAgentCalls } from "@/lib/agent/client";
-import { computePlanDiff, enforceTaskBudget, enforceTimeBudget, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
+import { computePlanDiff } from "@/lib/plan";
 import { normalizeTitle } from "@/lib/llm/parse";
 import { traceEvent } from "@/lib/trace";
+import { applyReplanTasks, convergePlanTasks, snapshotOpenTasks, toPlannedTasks } from "@/lib/replan";
+import { getPlanningPolicy } from "@/lib/policy";
+import { declaredMinutesPerDay, workdaysLeft } from "@/lib/policy-core";
 import type { PlanDiff, TaskSnapshot } from "@/lib/types";
 
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const t0 = Date.now();
   const runId = crypto.randomUUID().slice(0, 8); // Phase 9.5：请求级关联（web/agent trace 串联）
+  // Phase 10：?preview=1 只计算并返回新计划（含 diff），不落库——由用户在确认对话框里
+  // 审阅后再调 /replan/apply。默认（无 preview）保持旧行为：计算后直接应用。
+  const preview = req.nextUrl.searchParams.get("preview") === "1";
   let goalId = "";
   try {
     const { id } = await ctx.params;
     goalId = id;
     const goal = await prisma.goal.findUnique({
       where: { id },
-      include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] } },
+      include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { dependsOn: { select: { id: true, title: true } } } } },
     });
     if (!goal) return NextResponse.json({ ok: false, error: "目标不存在" }, { status: 404 });
 
@@ -27,6 +33,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const daysLeft = goal.deadline
       ? Math.max(1, Math.ceil((goal.deadline.getTime() - Date.now()) / 86400000))
+      : 14;
+    // Phase 12：策略驱动的容量口径（工作日 × 每日可投入）；LLM 输入仍用日历天数
+    const policy = await getPlanningPolicy();
+    const wdLeft = goal.deadline
+      ? Math.max(0, workdaysLeft(goal.deadline.toISOString(), policy.workdays))
       : 14;
 
     const snapshots: TaskSnapshot[] = goal.tasks.map((t) => ({
@@ -43,95 +54,81 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       deadline: goal.deadline?.toISOString(),
       daysLeft,
       tasks: snapshots,
+      declaredMinutesPerDay: declaredMinutesPerDay(daysLeft, policy),
     }, runId);
 
-    // Phase 2：清洗 + 反扩散 guard + diff（在改动数据库前完成全部计算）
-    const { deps } = sanitizeDependencies(result.tasks);
-    const today = new Date().toISOString().slice(0, 10);
-    sanitizeSchedule(result.tasks, deps, { today, deadline: goal.deadline?.toISOString().slice(0, 10) ?? null });
-    const oldOpenTitles = new Set(openTasks.map((t) => normalizeTitle(t.title)));
-    const afterCountGuard = enforceTaskBudget(result.tasks, oldOpenTitles);
-    // 容量输入源扩展：Agent 返回真实可用容量（Calendar 观察/用户声明）时覆写默认 480×天数
-    const budget = enforceTimeBudget(afterCountGuard, daysLeft, 480, result.capacityMinutes ?? null);
-    let finalTasks = budget.tasks;
-    // 丢弃与已完成任务同名的条目：LLM 偶尔会"复活"已完成工作（Phase 2 评测发现）
+    const oldOpenTitles = new Set(openTasks.filter((t) => t.origin !== "user").map((t) => normalizeTitle(t.title)));
     const doneTitles = new Set(goal.tasks.filter((t) => t.status === "done").map((t) => normalizeTitle(t.title)));
-    finalTasks = finalTasks.filter((t) => !doneTitles.has(normalizeTitle(t.title)));
-
-    // Phase 6 invariant breach 检测：Python 路径（带 finalize 观测块）已主动收敛，
-    // TS 守卫仍修改其输出 = 语义漂移信号，必须显式记录，绝不静默。
-    let invariantBreach = false;
-    if (result.finalize) {
-      const trimmedByCount = afterCountGuard.length < result.tasks.length;
-      const trimmedByTime = budget.note !== null;
-      const trimmedByDone = finalTasks.length < afterCountGuard.length;
-      if (trimmedByCount || trimmedByTime || trimmedByDone) {
-        invariantBreach = true;
-        console.error(
-          `[invariant-breach] TS 守卫修改了 Agent 已收敛的计划: count=${trimmedByCount} time=${trimmedByTime} done=${trimmedByDone}; ` +
-            `python finalize=${JSON.stringify(result.finalize)}; tsNote=${budget.note ?? "无"}`,
-        );
-      }
+    const userTasks = toPlannedTasks(openTasks.filter((t) => t.origin === "user"));
+    const converged = convergePlanTasks(result.tasks, {
+      today: new Date().toISOString().slice(0, 10),
+      deadlineIso: goal.deadline?.toISOString().slice(0, 10) ?? null,
+      workdaysLeft: Math.max(1, wdLeft),
+      capacityPerDay: policy.dailyCapacityMinutes,
+      capacityMinutes: result.capacityMinutes ?? null,
+      oldOpenTitles,
+      doneTitles,
+      finalizePresent: !!result.finalize,
+      userTasks,
+    });
+    if (converged.invariantBreach) {
+      // Phase 6 invariant breach：TS 守卫修改了 Agent 已收敛的计划，必须显式记录，绝不静默
+      console.error(
+        `[invariant-breach] TS 守卫修改了 Agent 已收敛的计划; ` +
+          `python finalize=${JSON.stringify(result.finalize)}`,
+      );
     }
-    const reason = budget.note ? `${result.reason}（${budget.note}）` : result.reason;
+    const reason =
+      (converged.userPreserved > 0 ? `已保留 ${converged.userPreserved} 项你手动设定的任务。` : "") +
+      result.reason +
+      (converged.budgetNote ? `（${converged.budgetNote}）` : "");
 
     const oldOpen = openTasks.map((t) => ({
       title: t.title,
       estMinutes: t.estMinutes,
       dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
     }));
-    const diff: PlanDiff = computePlanDiff(oldOpen, finalTasks);
+    const diff: PlanDiff = computePlanDiff(oldOpen, converged.finalTasks);
 
-    const updated = await prisma.$transaction(async (tx) => {
-      // 保留已完成任务，重写未完成任务
-      await tx.task.deleteMany({ where: { goalId: goal.id, status: { not: "done" } } });
-      const remaining = await tx.task.findMany({ where: { goalId: goal.id } });
-      const baseOrder = remaining.length;
-      const created: { id: string; title: string }[] = [];
-      for (let i = 0; i < finalTasks.length; i++) {
-        const t = finalTasks[i];
-        const task = await tx.task.create({
-          data: {
-            goalId: goal.id,
-            title: t.title,
-            notes: t.notes,
-            priority: t.priority,
-            estMinutes: t.estMinutes,
-            order: baseOrder + i,
-            startDate: t.startDate ? new Date(`${t.startDate}T00:00:00Z`) : undefined,
-            dueDate: t.dueDate ? new Date(`${t.dueDate}T00:00:00Z`) : undefined,
-            durationDays: t.durationDays,
-          },
-        });
-        created.push({ id: task.id, title: task.title });
-      }
-      // 连接依赖：新任务之间 + 对保留(done)任务的依赖
-      const idByTitle = new Map(created.map((c) => [normalizeTitle(c.title), c.id]));
-      for (const done of remaining) idByTitle.set(normalizeTitle(done.title), done.id);
-      for (const [key, ds] of Object.entries(deps)) {
-        if (ds.length === 0) continue;
-        const taskId = idByTitle.get(key);
-        const targets = ds.map((d) => idByTitle.get(d)).filter((v): v is string => !!v);
-        if (!taskId || targets.length === 0) continue;
-        await tx.task.update({
-          where: { id: taskId },
-          data: { dependsOn: { connect: targets.map((tid) => ({ id: tid })) } },
-        });
-      }
-      const goalUpdated = await tx.goal.update({
-        where: { id: goal.id },
-        data: { revision: { increment: 1 } },
-        include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { dependsOn: { select: { id: true, title: true } } } } },
+    if (preview) {
+      const lastCall = recentAgentCalls().at(-1);
+      traceEvent("replan_preview", {
+        runId,
+        goalId,
+        ok: true,
+        openIn: openTasks.length,
+        tasksOut: converged.finalTasks.length,
+        diff: { added: diff.added.length, removed: diff.removed.length, changed: diff.changed.length },
+        capacityMinutes: result.capacityMinutes ?? null,
+        finalizeAdjusted: result.finalize?.finalizeAdjusted ?? null,
+        invariantBreach: converged.invariantBreach,
+        agentProvider: lastCall?.provider ?? null,
+        agentFallbackReason: lastCall?.fallbackReason ?? null,
+        agentLatencyMs: lastCall?.latencyMs ?? null,
+        latencyMs: Date.now() - t0,
       });
-      await tx.planVersion.create({
+      return NextResponse.json({
+        ok: true,
         data: {
-          goalId: goal.id,
-          revision: goalUpdated.revision,
-          reason: reason,
-          diffJson: JSON.stringify(diff),
+          preview: true,
+          reason,
+          diff,
+          tasks: converged.finalTasks,
+          capacityMinutes: result.capacityMinutes ?? null,
+          finalize: result.finalize ?? null,
         },
       });
-      return goalUpdated;
+    }
+
+    const updated = await applyReplanTasks({
+      goalId: goal.id,
+      finalTasks: converged.finalTasks,
+      deps: converged.deps,
+      reason,
+      diff,
+      snapshot: snapshotOpenTasks(goal.tasks),
+      runId,
+      userTitleKeys: new Set(userTasks.map((t) => normalizeTitle(t.title))),
     });
 
     const lastCall = recentAgentCalls().at(-1);
@@ -141,11 +138,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       ok: true,
       planVersion: updated.revision,
       openIn: openTasks.length,
-      tasksOut: finalTasks.length,
+      tasksOut: converged.finalTasks.length,
       diff: { added: diff.added.length, removed: diff.removed.length, changed: diff.changed.length },
       capacityMinutes: result.capacityMinutes ?? null,
       finalizeAdjusted: result.finalize?.finalizeAdjusted ?? null,
-      invariantBreach,
+      invariantBreach: converged.invariantBreach,
       agentProvider: lastCall?.provider ?? null,
       agentFallbackReason: lastCall?.fallbackReason ?? null,
       agentLatencyMs: lastCall?.latencyMs ?? null,

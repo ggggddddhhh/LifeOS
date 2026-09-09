@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarPlus, Loader2, RefreshCw } from "lucide-react";
+import { CalendarPlus, Loader2, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge, writeStatusBadge } from "@/components/shared/status-badge";
@@ -92,9 +92,18 @@ export function CalendarDraftPanel({ goalId }: { goalId: string }) {
 
   async function cancelAll() {
     setBusy(true);
-    await fetch(`/api/goals/${goalId}/calendar/cancel`, { method: "POST"}).catch(() => {});
+    await fetch(`/api/goals/${goalId}/calendar/cancel`, { method: "POST" }).catch(() => {});
     await refresh();
     setBusy(false);
+  }
+
+  async function cancelOne(draftId: string) {
+    await fetch(`/api/goals/${goalId}/calendar/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ draftIds: [draftId] }),
+    }).catch(() => {});
+    await refresh();
   }
 
   if (drafts === null) return <ListSkeleton rows={3} />;
@@ -141,7 +150,7 @@ export function CalendarDraftPanel({ goalId }: { goalId: string }) {
                       </Button>
                     }
                     title={`确认向日历写入 ${pending.length} 个事件？`}
-                    description="LifeOS 将在以下时段创建事件（不会修改你已有的任何事件）。重复确认是安全的——已写入的会被幂等跳过。"
+                    description="LifeOS 将在以下时段创建事件（不会修改你已有的任何事件）。重复确认是安全的——已写入的不会重复创建。"
                     confirmLabel="确认写入"
                     busy={busy}
                     onConfirm={confirmAll}
@@ -169,10 +178,23 @@ export function CalendarDraftPanel({ goalId }: { goalId: string }) {
                   <span className="min-w-0 flex-1 truncate">{d.taskTitle}</span>
                   <span className="tabular shrink-0 text-xs text-muted-foreground">
                     {formatInZone(d.proposedStart, d.timezone || "Asia/Shanghai")}
+                    <span className="ml-1.5 text-muted-foreground/70">
+                      · {Math.round((new Date(d.proposedEnd).getTime() - new Date(d.proposedStart).getTime()) / 60000)} 分钟
+                    </span>
                   </span>
                   <StatusBadge tone={b.tone} dot>
                     {b.label}
                   </StatusBadge>
+                  {d.status === "pending_confirmation" && (
+                    <button
+                      onClick={() => cancelOne(d.id)}
+                      title="这一条不写入日历"
+                      className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground"
+                    >
+                      <X className="size-3.5" aria-hidden />
+                      <span className="sr-only">取消「{d.taskTitle}」的排期</span>
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -184,7 +206,7 @@ export function CalendarDraftPanel({ goalId }: { goalId: string }) {
         <div className="animate-rise flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3.5 py-2.5 text-xs">
           <span className="font-medium">写入结果</span>
           <StatusBadge tone="success">成功 {summary.success}</StatusBadge>
-          {summary.duplicate_skipped > 0 && <StatusBadge>幂等跳过 {summary.duplicate_skipped}</StatusBadge>}
+          {summary.duplicate_skipped > 0 && <StatusBadge>已写入过，跳过 {summary.duplicate_skipped}</StatusBadge>}
           {summary.stale_conflict > 0 && <StatusBadge tone="warning">时段冲突 {summary.stale_conflict}</StatusBadge>}
           {summary.failed > 0 && <StatusBadge tone="danger">失败 {summary.failed}</StatusBadge>}
         </div>

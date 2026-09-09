@@ -17,7 +17,8 @@ from .prompts import CALENDAR_PAYLOAD_NOTE, GITHUB_PAYLOAD_NOTE, PLANNER_SYSTEM,
 from .trace import trace
 
 MAX_ATTEMPTS = 2  # Validate 失败最多重试 1 次（首次 + 重试），禁止无限循环
-CAPACITY_PER_DAY = 480
+# Phase 12：规划默认值唯一来源是 TS PlanningSettings（经请求 declaredMinutesPerDay 必传）；
+# Python 不再持有每日容量默认——本模块按声明层求和。
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TITLE_STRIP_RE = re.compile(r"[\s，。、,.:：;；!！?？·\-—_/\\()（）\[\]【】\"'']+")
@@ -70,13 +71,16 @@ def analyze_node(state: AgentState) -> AgentState:
         open_tasks = [t for t in tasks if t.get("status") != "done"]
         total_min = sum(t.get("estMinutes", 0) for t in open_tasks)
         days_left = max(1, int(req.get("daysLeft", 14)))
+        # Phase 12：容量 = 声明层（策略）求和；缺声明时按 0 容量处理（schema 已保证必传）
+        declared = req.get("declaredMinutesPerDay") or [0] * days_left
+        capacity = max(0, sum(int(m) for m in declared[:days_left]))
         analysis = {
             "daysLeft": days_left,
             "openCount": len(open_tasks),
             "doneCount": len(tasks) - len(open_tasks),
             "openTotalMinutes": total_min,
-            "capacityMinutes": days_left * CAPACITY_PER_DAY,
-            "overloaded": total_min > days_left * CAPACITY_PER_DAY,
+            "capacityMinutes": capacity,
+            "overloaded": total_min > capacity,
         }
     return {"analysis": analysis, "repo": {"owner": repo[0], "name": repo[1]} if repo else None}
 

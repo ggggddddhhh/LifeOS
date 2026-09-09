@@ -21,13 +21,17 @@ const COLUMNS: { status: TaskStatus; title: string }[] = [
 export function Kanban({
   tasks,
   onStatusChange,
+  onEdit,
+  onDelete,
 }: {
   tasks: TaskView[];
   onStatusChange: (id: string, status: TaskStatus) => void;
+  onEdit?: (task: TaskView) => void;
+  onDelete?: (task: TaskView) => void;
 }) {
   const [mobileCol, setMobileCol] = useState<TaskStatus>("todo");
   if (tasks.length === 0) {
-    return <EmptyState icon={KanbanSquare} title="还没有任务" hint="运行一次 Replan 生成计划" />;
+    return <EmptyState icon={KanbanSquare} title="还没有任务" hint="点上面的「重新规划」生成计划" />;
   }
   return (
     <div>
@@ -60,7 +64,7 @@ export function Kanban({
               </header>
               <div className="space-y-1.5">
                 {items.map((t) => (
-                  <TaskCard key={t.id} task={t} onStatusChange={onStatusChange} />
+                  <TaskCard key={t.id} task={t} onStatusChange={onStatusChange} onEdit={onEdit} onDelete={onDelete} />
                 ))}
               </div>
             </section>

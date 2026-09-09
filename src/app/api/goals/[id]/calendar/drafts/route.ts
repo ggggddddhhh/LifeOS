@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildCalendarDrafts } from "@/lib/agent/calendar";
-import { DEFAULT_USER_TZ } from "@/lib/time";
+import { getPlanningPolicy } from "@/lib/policy";
 import { traceEvent } from "@/lib/trace";
 
 /** POST /api/goals/:id/calendar/drafts —— 生成日历草稿（pending_confirmation，永不写日历） */
@@ -47,11 +47,19 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       ? Math.max(1, Math.ceil((goal.deadline.getTime() - Date.now()) / 86400000))
       : 14;
 
+    // Phase 12：策略单源 —— 工作日/时段/每日上限/时区/目标日历全部来自 PlanningSettings，
+    // Python 侧无本地默认（请求缺字段 = 契约错误）
+    const policy = await getPlanningPolicy();
     const built = await buildCalendarDrafts({
       goalId: id,
       planVersion: goal.revision,
       daysLeft,
-      timezone: DEFAULT_USER_TZ,
+      timezone: policy.timezone,
+      workdays: policy.workdays,
+      workStartMinute: policy.workStartMinute,
+      workEndMinute: policy.workEndMinute,
+      dailyCapMinutes: policy.dailyCapacityMinutes,
+      calendarId: policy.calendarId,
       tasks: draftable.map((t) => ({
         taskId: t.id,
         title: t.title,

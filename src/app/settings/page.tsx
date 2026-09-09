@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Skeleton } from "@/components/shared/states";
 import { ThemeToggle } from "@/components/app/theme-toggle";
+import { PlanningPolicySection } from "@/components/settings/planning-policy-section";
 import type { Envelope } from "@/lib/ui-data";
 
 interface CalStatus {
@@ -68,6 +69,8 @@ export default function SettingsPage() {
           <ThemeToggle />
         </div>
       </section>
+
+      <PlanningPolicySection />
 
       <section aria-label="Google Calendar 连接" className="rounded-lg border p-4">
         <div className="flex items-start justify-between gap-3">
@@ -150,11 +153,11 @@ export default function SettingsPage() {
         <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted-foreground">
           <li className="flex gap-1.5">
             <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
-            AI 只做分析与计划（Analyze → Plan → Replan → Explain）；所有日历写入都需要你在 Goal 页显式确认。
+            AI 只做分析与计划；调整任务计划、写入日历，都需要你在对应页面显式确认后才执行。
           </li>
           <li className="flex gap-1.5">
             <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
-            重复确认是安全的：已写入的事件会被幂等机制跳过，时段被占用会标记冲突而非覆盖。
+            重复确认是安全的：已写入的事件不会重复创建；时段被占用会标记冲突，绝不覆盖已有安排。
           </li>
           <li className="flex gap-1.5">
             <Plug className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden />

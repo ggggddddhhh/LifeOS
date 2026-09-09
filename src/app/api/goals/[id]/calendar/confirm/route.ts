@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { executeCalendarDrafts, type ExecuteResultItem } from "@/lib/agent/calendar";
-import { DEFAULT_USER_TZ } from "@/lib/time";
+import { getPlanningPolicy } from "@/lib/policy";
 import { traceEvent } from "@/lib/trace";
 import type { CalendarDraftItem } from "@/lib/types";
 
@@ -42,6 +42,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     // 只把「确认且从未成功执行过」的草稿发给执行器（DB 幂等门）
     const existingKeys = new Set(goal.calWrites.filter((w) => w.status === "success").map((w) => idempotencyKeyOf(w.idempotencyKey)));
+    const policy = await getPlanningPolicy();
     const estByTask = new Map(goal.tasks.map((t) => [t.id, t.estMinutes]));
     const toExecute: CalendarDraftItem[] = [];
     const skippedAsExecuted: string[] = [];
@@ -55,7 +56,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
           taskTitle: d.taskTitle,
           startUtc: d.proposedStart.toISOString(), // Instant（UTC Z）
           endUtc: d.proposedEnd.toISOString(),
-          timezone: d.timezone ?? DEFAULT_USER_TZ,
+          timezone: d.timezone ?? policy.timezone,
           calendarId: d.calendarId,
           actionType: "create",
           reason: d.reason,
@@ -75,7 +76,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       const executed = await executeCalendarDrafts({
         goalId: id,
         planVersion: goal.revision,
-        timezone: DEFAULT_USER_TZ,
+        timezone: policy.timezone,
         drafts: toExecute,
         tasks: [...new Set(toExecute.map((d) => d.taskId))].map((tid) => ({
           taskId: tid,

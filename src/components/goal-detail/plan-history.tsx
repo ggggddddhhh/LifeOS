@@ -11,7 +11,7 @@ import { parseDiff, type PlanVersionView } from "@/lib/ui-data";
 export function PlanHistory({ versions }: { versions: PlanVersionView[] }) {
   const [open, setOpen] = useState<string | null>(null);
   if (!versions || versions.length === 0) {
-    return <EmptyState icon={History} title="暂无计划历史" hint="每次 Replan 都会在这里留档（reason + diff）" />;
+    return <EmptyState icon={History} title="暂无计划历史" hint="每次重新规划都会在这里留档（原因 + 变更明细）" />;
   }
   return (
     <ol className="space-y-0">
@@ -34,7 +34,7 @@ export function PlanHistory({ versions }: { versions: PlanVersionView[] }) {
                 aria-expanded={expanded}
                 className="flex w-full items-start gap-2 text-left"
               >
-                <span className="tabular mt-px text-xs font-semibold text-foreground">v{v.revision}</span>
+                <span className="tabular mt-px shrink-0 text-xs font-semibold text-foreground">第 {v.revision} 版</span>
                 <span className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{v.reason}</span>
                 <span className="mt-0.5 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70">
                   <time className="tabular">{new Date(v.createdAt).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })}</time>

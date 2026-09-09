@@ -63,6 +63,7 @@ export interface ReplanInput {
   deadline?: string; // ISO
   daysLeft: number;
   tasks: TaskSnapshot[]; // 当前全部任务（含 done）
+  declaredMinutesPerDay?: number[]; // Phase 12：策略声明容量（工作日=每日可投入，非工作日=0）；Python 三层容量的「声明层」
 }
 
 export interface FinalizeAdjustment {

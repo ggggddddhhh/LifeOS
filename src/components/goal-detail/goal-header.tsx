@@ -2,24 +2,27 @@
 
 import { CalendarDays, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { budgetOf, daysLeftOf, fmtDate, type GoalView } from "@/lib/ui-data";
+import { budgetOf, capacityMinutesOf, daysLeftOf, fmtDate, type GoalView } from "@/lib/ui-data";
+import { DEFAULT_POLICY, type PlanningPolicy } from "@/lib/policy-core";
 
 /**
- * 容量表达：默认按 8h/天估算并标注「估算」；replan 后若 Agent 返回了真实 Calendar 容量
- * （capacityMinutes），由页面传入 override 覆盖并标注「日历实测」——语义与后端一致，不再冒充。
+ * 容量表达：默认按策略（每日可投入 × 剩余工作日）估算并标注「估算」；replan 后若 Agent
+ * 返回了真实 Calendar 容量（capacityMinutes），由页面传入 override 覆盖并标注「日历实测」
+ * ——语义与后端一致，不再冒充。
  */
 export function CapacityBar({
   goal,
   capacityMinutesOverride,
+  policy = DEFAULT_POLICY,
 }: {
   goal: GoalView;
   capacityMinutesOverride?: number | null;
+  policy?: PlanningPolicy;
 }) {
   const open = goal.tasks.filter((t) => t.status !== "done");
   const totalMin = open.reduce((s, t) => s + budgetOf(t), 0);
-  const daysLeft = daysLeftOf(goal.deadline);
   const isReal = typeof capacityMinutesOverride === "number" && capacityMinutesOverride >= 0;
-  const capacity = isReal ? (capacityMinutesOverride as number) : (daysLeft ?? 14) * 480;
+  const capacity = isReal ? (capacityMinutesOverride as number) : capacityMinutesOf(goal.deadline, policy);
   const ratio = capacity > 0 ? totalMin / capacity : 1.5;
   const level = ratio > 1 ? "over" : ratio > 0.75 ? "tight" : "ok";
 
@@ -65,9 +68,11 @@ export function CapacityBar({
 export function GoalHeader({
   goal,
   capacityMinutes,
+  policy,
 }: {
   goal: GoalView;
   capacityMinutes?: number | null;
+  policy?: PlanningPolicy;
 }) {
   const done = goal.tasks.filter((t) => t.status === "done").length;
   const total = goal.tasks.length;
@@ -94,9 +99,9 @@ export function GoalHeader({
       )}
       <span className="tabular inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <Gauge className="size-3.5" aria-hidden />
-        计划 v{goal.revision}
+        计划第 {goal.revision} 版
       </span>
-      <CapacityBar goal={goal} capacityMinutesOverride={capacityMinutes} />
+      <CapacityBar goal={goal} capacityMinutesOverride={capacityMinutes} policy={policy} />
     </div>
   );
 }

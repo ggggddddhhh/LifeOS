@@ -44,9 +44,10 @@ class ReplanRequest(BaseModel):
     deadline: Optional[str] = None  # ISO-8601
     daysLeft: int = Field(ge=1, le=3650)
     tasks: list[TaskSnapshot] = Field(min_length=1)
-    # 用户主动声明的每日可投入分钟数（下标 = 剩余第几天，长度应≈daysLeft）。
-    # 语义层级：用户声明 > Calendar 推断 > 默认 480/天；与推断冲突时显式标注。
-    declaredMinutesPerDay: Optional[list[int]] = None
+    # 用户声明的每日可投入分钟数（下标 = 剩余第几天，长度应≈daysLeft）。Phase 12 起必传：
+    # TS 由 PlanningSettings 单源生成（工作日=每日可投入，非工作日=0），Python 不再持有默认值。
+    # 语义层级：用户声明 > Calendar 推断；与推断冲突时显式标注。
+    declaredMinutesPerDay: list[int] = Field(min_length=1)
 
 
 class FinalizeAdjustment(BaseModel):
@@ -220,8 +221,8 @@ class CalendarDraftItem(BaseModel):
     startUtc: str
     endUtc: str
     timezone: str  # IANA
-    calendarId: str = "primary"
-    actionType: str = "create"  # v1 仅 create
+    calendarId: str  # Phase 12：必传（来自 PlanningSettings 单源）
+    actionType: str = "create"  # v1 仅支持 create
     reason: str | None = None
     idempotencyKey: str  # goalId:planVersion:taskId:occurrence
     ambiguous: bool = False
@@ -232,7 +233,13 @@ class DraftBuildRequest(BaseModel):
     goalId: str
     planVersion: int
     daysLeft: int = Field(ge=1, le=3650)
-    timezone: str = "Asia/Shanghai"  # 规划时区（IANA）
+    timezone: str  # Phase 12：必传（IANA，规划时区）——Python 无本地默认
+    # ---- Planning Policy（Phase 12 单源必传：全部来自 TS PlanningSettings）----
+    workdays: list[int] = Field(min_length=1)  # ISO 星期（1=一 … 7=日）
+    workStartMinute: int = Field(ge=0, le=1440)  # 墙钟分钟（规划时区）
+    workEndMinute: int = Field(ge=0, le=1440)
+    dailyCapMinutes: int = Field(ge=0)  # 每日排期上限；0 = 明确不排期
+    calendarId: str = Field(min_length=1, max_length=120)
     tasks: list[dict] = Field(min_length=1)  # [{taskId,title,estMinutes,priority,status?,durationDays?}]
 
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { PlanDiff, TaskStatus } from "@/lib/types";
+import { DEFAULT_POLICY, workdaysLeft, type PlanningPolicy } from "@/lib/policy-core";
 
 /** 前端视图类型（对齐 GET /api/goals 响应，含 planVersions） */
 export interface TaskView {
@@ -14,6 +15,8 @@ export interface TaskView {
   startDate?: string | null;
   dueDate?: string | null;
   durationDays?: number | null;
+  origin?: string; // ai | user（user = 用户创建或手动改过，重新规划不改写）
+  updatedAt?: string; // 乐观锁：编辑提交时回传 expectedUpdatedAt
   dependsOn?: { id: string; title: string }[];
 }
 
@@ -25,6 +28,16 @@ export interface PlanVersionView {
   createdAt: string;
 }
 
+export interface CalEventView {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  proposedStart: string;
+  proposedEnd: string;
+  timezone?: string | null;
+  status: string;
+}
+
 export interface GoalView {
   id: string;
   title: string;
@@ -34,6 +47,7 @@ export interface GoalView {
   createdAt: string;
   tasks: TaskView[];
   versions?: PlanVersionView[];
+  calDrafts?: CalEventView[];
 }
 
 export interface Envelope<T> {
@@ -71,19 +85,33 @@ export function parseDiff(json: string): PlanDiff | null {
   }
 }
 
-/** 全量 goals 数据 hook（Today/Goals/Calendar/Activity 共用）。 */
+/** 策略容量（分钟）：剩余工作日 × 每日可投入；无截止日回退 14 天口径。 */
+export function capacityMinutesOf(deadline: string | null | undefined, policy: PlanningPolicy): number {
+  const days = deadline ? Math.max(1, workdaysLeft(deadline, policy.workdays)) : 14;
+  return days * policy.dailyCapacityMinutes;
+}
+
+/** 全量 goals 数据 hook（Today/Goals/Calendar/Activity 共用）；Phase 12 起附带规划策略。 */
 export function useGoals() {
   const [goals, setGoals] = useState<GoalView[]>([]);
+  const [policy, setPolicy] = useState<PlanningPolicy>(DEFAULT_POLICY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch("/api/goals");
-      const json = (await res.json()) as Envelope<GoalView[]>;
+      const [goalsRes, policyRes] = await Promise.all([
+        fetch("/api/goals"),
+        fetch("/api/settings/planning").catch(() => null),
+      ]);
+      const json = (await goalsRes.json()) as Envelope<GoalView[]>;
       if (json.ok && json.data) setGoals(json.data);
       else setError(json.error ?? "加载失败");
+      if (policyRes && policyRes.ok) {
+        const pj = (await policyRes.json()) as Envelope<PlanningPolicy>;
+        if (pj.ok && pj.data) setPolicy(pj.data);
+      }
     } catch {
       setError("网络不可达，请检查服务是否在运行");
     } finally {
@@ -95,7 +123,7 @@ export function useGoals() {
     refresh();
   }, [refresh]);
 
-  return { goals, loading, error, refresh, setError };
+  return { goals, policy, loading, error, refresh, setError };
 }
 
 /** 乐观更新任务状态；失败回滚并返回错误。 */

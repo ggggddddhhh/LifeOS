@@ -59,6 +59,7 @@ class TestPlanContract:
     def test_replan_prompt_version_header(self, api_client):
         res = api_client.post("/v1/replan", json={
             "goalTitle": "g", "daysLeft": 2,
+            "declaredMinutesPerDay": [480, 480, 480],
             "tasks": [{"title": "a", "status": "todo", "estMinutes": 60, "priority": 1}],
         })
         assert res.status_code == 200
@@ -70,6 +71,7 @@ class TestReplanContract:
         res = api_client.post("/v1/replan", json={
             "goalTitle": "雅思 6.5",
             "daysLeft": 3,
+            "declaredMinutesPerDay": [480, 480, 480],
             "tasks": [
                 {"title": "口语训练", "status": "in_progress", "estMinutes": 300, "priority": 1},
                 {"title": "全真模考", "status": "todo", "estMinutes": 200, "priority": 2},
@@ -88,6 +90,7 @@ class TestReplanContract:
     def test_invalid_status_422(self, api_client):
         res = api_client.post("/v1/replan", json={
             "goalTitle": "g", "daysLeft": 3,
+            "declaredMinutesPerDay": [480, 480, 480],
             "tasks": [{"title": "a", "status": "blocked", "estMinutes": 60, "priority": 1}],
         })
         assert res.status_code == 422

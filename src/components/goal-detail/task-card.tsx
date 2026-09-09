@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, ChevronDown, Link2, Repeat2, Timer } from "lucide-react";
+import { CalendarClock, ChevronDown, Link2, Pencil, Repeat2, Timer, Trash2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtRange, type TaskView } from "@/lib/ui-data";
 import type { TaskStatus } from "@/lib/types";
@@ -21,15 +21,20 @@ function PriorityDot({ level }: { level: number }) {
 const STATUS_TITLE: Record<TaskStatus, string> = { todo: "待办", in_progress: "进行中", done: "已完成" };
 
 /**
- * Kanban 任务卡（重写）：checkbox 三态、紧凑 meta 行（时长/周期/日期/依赖），
-  notes 可折叠；点击 checkbox 顺序推进 todo→doing→done，回退走菜单防误触。
+ * Kanban 任务卡：checkbox 三态、紧凑 meta 行（时长/周期/日期/依赖），
+ * notes 可折叠；点击 checkbox 顺序推进 todo→doing→done。
+ * 悬停出现 编辑/删除（Phase 11 用户控制权）；origin=user 显示「你设定」徽标。
  */
 export function TaskCard({
   task,
   onStatusChange,
+  onEdit,
+  onDelete,
 }: {
   task: TaskView;
   onStatusChange: (id: string, status: TaskStatus) => void;
+  onEdit?: (task: TaskView) => void;
+  onDelete?: (task: TaskView) => void;
 }) {
   const status = task.status as TaskStatus;
   const [expanded, setExpanded] = useState(false);
@@ -88,10 +93,16 @@ export function TaskCard({
             {task.dependsOn && task.dependsOn.length > 0 && (
               <span
                 className="inline-flex items-center gap-1"
-                title={`依赖：${task.dependsOn.map((d) => d.title).join("、")}`}
+                title={`需要先完成：${task.dependsOn.map((d) => d.title).join("、")}`}
               >
                 <Link2 className="size-3" aria-hidden />
-                {task.dependsOn.length}
+                等 {task.dependsOn.length} 项
+              </span>
+            )}
+            {task.origin === "user" && (
+              <span className="inline-flex items-center gap-1" title="你手动设定——重新规划不会改动它">
+                <UserCheck className="size-3" aria-hidden />
+                你设定
               </span>
             )}
           </div>
@@ -109,6 +120,30 @@ export function TaskCard({
             </>
           )}
         </div>
+        {(onEdit || onDelete) && (
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(task)}
+                title="编辑这项任务"
+                aria-label={`编辑「${task.title}」`}
+                className="rounded p-1 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Pencil className="size-3" aria-hidden />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(task)}
+                title="删除这项任务"
+                aria-label={`删除「${task.title}」`}
+                className="rounded p-1 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-danger"
+              >
+                <Trash2 className="size-3" aria-hidden />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

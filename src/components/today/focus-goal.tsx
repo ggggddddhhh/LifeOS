@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { CircleAlert, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { budgetOf, daysLeftOf, fmtDate, type GoalView } from "@/lib/ui-data";
+import { budgetOf, capacityMinutesOf, daysLeftOf, fmtDate, type GoalView } from "@/lib/ui-data";
+import { DEFAULT_POLICY, type PlanningPolicy } from "@/lib/policy-core";
 import { cn } from "@/lib/utils";
 
 /** Today 焦点目标卡：进度 · 截止倒计时 · 剩余工作量 vs 容量（估算，标注来源）。 */
-export function FocusGoal({ goal }: { goal: GoalView }) {
+export function FocusGoal({ goal, policy = DEFAULT_POLICY }: { goal: GoalView; policy?: PlanningPolicy }) {
   const done = goal.tasks.filter((t) => t.status === "done").length;
   const total = goal.tasks.length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -16,7 +17,7 @@ export function FocusGoal({ goal }: { goal: GoalView }) {
   const urgent = daysLeft !== null && daysLeft <= 2 && done < total;
   const risk = urgent
     ? { tone: "danger" as const, label: `剩 ${daysLeft} 天` }
-    : daysLeft !== null && openMin > (daysLeft || 1) * 480
+    : daysLeft !== null && openMin > capacityMinutesOf(goal.deadline, policy)
       ? { tone: "warning" as const, label: "工作量超出容量" }
       : null;
 
@@ -27,7 +28,7 @@ export function FocusGoal({ goal }: { goal: GoalView }) {
     >
       <div className="flex items-start justify-between gap-3">
         <h2 className="min-w-0 text-[15px] font-semibold leading-snug tracking-tight">{goal.title}</h2>
-        <span className="tabular shrink-0 text-xs text-muted-foreground">v{goal.revision}</span>
+        <span className="tabular shrink-0 text-xs text-muted-foreground">第 {goal.revision} 版计划</span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
         <span className="tabular">
@@ -55,8 +56,8 @@ export function FocusGoal({ goal }: { goal: GoalView }) {
   );
 }
 
-/** 风险信号（contextual，只在有情况时出现）：截止临近 / 容量超载 / 待确认日历草稿。 */
-export function RiskSignals({ goals }: { goals: GoalView[] }) {
+/** 风险信号（contextual，只在有情况时出现）：截止临近 / 容量超载。 */
+export function RiskSignals({ goals, policy = DEFAULT_POLICY }: { goals: GoalView[]; policy?: PlanningPolicy }) {
   const signals: { tone: "warning" | "danger" | "info"; text: string; href: string }[] = [];
   for (const g of goals) {
     const daysLeft = daysLeftOf(g.deadline);
@@ -65,8 +66,8 @@ export function RiskSignals({ goals }: { goals: GoalView[] }) {
       signals.push({ tone: "danger", text: `「${g.title.slice(0, 16)}」还剩 ${daysLeft} 天，${open.length} 项未完成`, href: `/goals/${g.id}` });
     }
     const openMin = open.reduce((s, t) => s + budgetOf(t), 0);
-    if (daysLeft !== null && openMin > (daysLeft || 1) * 480) {
-      signals.push({ tone: "warning", text: `「${g.title.slice(0, 16)}」剩余工作量超出剩余天数容量，建议 Replan`, href: `/goals/${g.id}` });
+    if (g.deadline && openMin > capacityMinutesOf(g.deadline, policy)) {
+      signals.push({ tone: "warning", text: `「${g.title.slice(0, 16)}」剩余工作量超出剩余天数容量，建议重新规划`, href: `/goals/${g.id}` });
     }
   }
   if (signals.length === 0) return null;

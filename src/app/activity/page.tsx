@@ -52,7 +52,7 @@ export default function ActivityPage() {
       {loading ? (
         <ListSkeleton rows={5} />
       ) : items.length === 0 ? (
-        <EmptyState icon={History} title="暂无活动" hint="创建目标或运行 Replan 后，这里会记录每次计划调整。" />
+        <EmptyState icon={History} title="暂无活动" hint="创建目标或重新规划后，这里会记录每次计划调整。" />
       ) : (
         <ol className="space-y-0">
           {items.map((it, i) => {
@@ -70,7 +70,7 @@ export default function ActivityPage() {
                     <Link href={`/goals/${it.goalId}`} className="truncate hover:text-foreground hover:underline">
                       {it.goalTitle}
                     </Link>
-                    <span className="tabular shrink-0">v{it.revision}</span>
+                    <span className="tabular shrink-0">第 {it.revision} 版</span>
                   </div>
                   <button onClick={() => setOpen(expanded ? null : it.id)} aria-expanded={expanded} className="group mt-0.5 flex w-full items-start gap-1.5 text-left">
                     <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{it.reason}</p>

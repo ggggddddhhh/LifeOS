@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import Link from "next/link";
 import { CalendarCheck2, ListTodo, Sparkles, Sun } from "lucide-react";
 import { GoalCreateDialog } from "@/components/goals/goal-create-dialog";
 import { FocusGoal, RiskSignals } from "@/components/today/focus-goal";
@@ -22,7 +23,7 @@ function isToday(iso?: string | null): boolean {
 
 /** Today Dashboard：日期与进度 → 风险信号 → 当前 Goal 焦点 → 今日/进行中任务。 */
 export default function TodayPage() {
-  const { goals, loading, error, refresh, setError } = useGoals();
+  const { goals, policy, loading, error, refresh, setError } = useGoals();
 
   const onStatusChange = useCallback(
     async (taskId: string, status: TaskStatus) => {
@@ -88,7 +89,7 @@ export default function TodayPage() {
         <>
           {focus ? (
             <section aria-label="当前目标">
-              <FocusGoal goal={focus} />
+              <FocusGoal goal={focus} policy={policy} />
             </section>
           ) : (
             <EmptyState icon={CalendarCheck2} title="所有目标都已完成" hint="创建下一个目标，继续保持节奏。" />
@@ -97,12 +98,18 @@ export default function TodayPage() {
           {active.length > 1 && (
             <section aria-label="其他进行中目标" className="space-y-1.5">
               {active.slice(1, 3).map((g) => (
-                <FocusGoal key={g.id} goal={g} />
+                <FocusGoal key={g.id} goal={g} policy={policy} />
               ))}
+              <Link
+                href="/goals"
+                className="block px-1 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                查看全部 {active.length} 个进行中的目标 →
+              </Link>
             </section>
           )}
 
-          <RiskSignals goals={goals} />
+          <RiskSignals goals={goals} policy={policy} />
 
           <section aria-label="今天到期">
             <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -126,7 +133,9 @@ export default function TodayPage() {
               进行中（{doing.length}）
             </h2>
             {doing.length === 0 ? (
-              <p className="px-2 py-3 text-xs text-muted-foreground">没有正在进行的任务，从 Today 里开始一项。</p>
+              <p className="px-2 py-3 text-xs text-muted-foreground">
+                没有正在进行的任务。从上面的目标或「今天到期」里，点任务左侧的圆圈开始一项。
+              </p>
             ) : (
               <div className="-mx-2">
                 {doing.map(({ task, goal }) => (

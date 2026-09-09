@@ -23,7 +23,6 @@ from .times import (
     today_in,
     to_utc,
     wall_in_tz,
-    work_window,
 )
 
 UID_PREFIX = "lifeos"
@@ -48,11 +47,19 @@ def make_uid(goal_id: str, plan_version: int, task_id: str, occurrence: int = 1)
 
 # ---------------------------------------------------------------- Draft Builder（只读，确定性，规划时区墙钟空间）
 
-def _free_windows(days_left: int, planning_tz: str, busy: list[dict]) -> dict[str, list[tuple[datetime, datetime]]]:
-    """按规划时区墙钟日计算 [08:00,20:00] 空闲区间。
+def _free_windows(
+    days_left: int,
+    planning_tz: str,
+    busy: list[dict],
+    workdays: set[int],
+    start_minute: int,
+    end_minute: int,
+) -> dict[str, list[tuple[datetime, datetime]]]:
+    """按规划时区墙钟日计算 [work_start, work_end] 空闲区间（Phase 12：工作日/时段来自策略）。
 
     busy: [{startUtc,endUtc,allDay,localDate}] —— Instant 或 all-day LocalDate。
     all-day 阻塞其 LocalDate 对应的规划时区日；定时长事件 Instant→墙钟后做区间减法。
+    非工作日 → 空窗口（不排期）。
     """
     base = today_in(planning_tz)
     windows: dict[str, list[tuple[datetime, datetime]]] = {}
@@ -69,12 +76,16 @@ def _free_windows(days_left: int, planning_tz: str, busy: list[dict]) -> dict[st
     for i in range(days_left):
         d = base + timedelta(days=i)
         iso = d.isoformat()
-        if iso in all_day_dates:
+        if d.isoweekday() not in workdays or iso in all_day_dates:
             windows[iso] = []
             continue
-        ws, we = work_window(d)
+        ws = datetime(d.year, d.month, d.day, start_minute // 60, start_minute % 60)
+        we = datetime(d.year, d.month, d.day, end_minute // 60, end_minute % 60)
+        if we <= ws:
+            windows[iso] = []
+            continue
         ws_utc, we_utc = to_utc(ws, planning_tz).instant, to_utc(we, planning_tz).instant
-        # 规划时区的窗口 Instant（DST 日窗口跨度可为 11h/13h，墙钟空间仍为 12h——以墙钟为准）
+        # 规划时区的窗口 Instant（DST 日窗口跨度可变——以墙钟为准）
         busy_walls: list[tuple[datetime, datetime]] = []
         for s, e in timed:
             if e <= ws_utc or s >= we_utc:
@@ -102,10 +113,25 @@ def build_drafts(
     goal_id: str,
     plan_version: int,
     planning_tz: str,
+    *,
+    workdays: set[int],
+    work_start_minute: int,
+    work_end_minute: int,
+    daily_cap_minutes: int,
+    calendar_id: str,
 ) -> list[CalendarDraftItem]:
-    """确定性贪心：规划时区墙钟空间内按优先级排入空闲窗口，落位后 canonical 转 Instant。"""
+    """确定性排期（Phase 12：工作日/时段/每日上限/目标日历全部来自调用方策略，无本地默认）。
+
+    每日上限 ≤ 0 = 用户明确声明不排期 → 返回空（如实上报 unplaced，不做兜底）。
+    任务择「当日已排最少」且未超每日上限的日子落位——避免把一周的任务堆进同一天；
+    全部日子都超上限时退回「最早能放下」的贪心，保证不因上限而漏排。
+    落位后 canonical 转 Instant。
+    """
+    if daily_cap_minutes <= 0:
+        return []
     drafts: list[CalendarDraftItem] = []
-    free = _free_windows(days_left, planning_tz, busy)
+    free = _free_windows(days_left, planning_tz, busy, workdays, work_start_minute, work_end_minute)
+    placed_minutes: dict[str, int] = {iso: 0 for iso in free}
 
     ordered = sorted(
         [t for t in tasks if t.get("status", "todo") != "done"],
@@ -120,11 +146,43 @@ def build_drafts(
             taskId=task["taskId"], taskTitle=task["title"],
             startUtc=conv_s.instant.isoformat(timespec="seconds").replace("+00:00", "Z"),
             endUtc=conv_e.instant.isoformat(timespec="seconds").replace("+00:00", "Z"),
-            timezone=planning_tz, calendarId="primary", actionType="create", reason=reason,
+            timezone=planning_tz, calendarId=calendar_id, actionType="create", reason=reason,
             idempotencyKey=f"{goal_id}:{plan_version}:{task['taskId']}:{occurrence}",
             ambiguous=conv_s.ambiguous or conv_e.ambiguous,
             nonexistent=conv_s.nonexistent or conv_e.nonexistent,
         )
+
+    def try_place_single(t: dict, est: int, respect_cap: bool) -> bool:
+        """择日落位：cap 内优先「当日已排最少」（平局取最早时刻）；否则最早能放下的日子。"""
+        candidates: list[tuple[datetime, str, int]] = []  # (wall_start, iso, load_before)
+        fallback: tuple[datetime, str] | None = None
+        for iso, intervals in free.items():
+            for s, e in intervals:
+                if (e - s).total_seconds() / 60 >= est:
+                    if not respect_cap or placed_minutes[iso] + est <= daily_cap_minutes:
+                        candidates.append((s, iso, placed_minutes[iso]))
+                    elif fallback is None:
+                        fallback = (s, iso)
+        if candidates:
+            best = min(candidates, key=lambda c: (c[2], c[0]))
+            s, iso, _ = best
+            for idx, (a, _e2) in enumerate(free[iso]):
+                if a == s:
+                    free[iso][idx] = (s + timedelta(minutes=est), free[iso][idx][1])
+                    break
+            placed_minutes[iso] += est
+            drafts.append(place(s, est, t, 1, "按剩余可用时间分散排期" if respect_cap else "按剩余可用时间排期"))
+            return True
+        if fallback is not None:
+            s, iso = fallback
+            for idx, (a, _e2) in enumerate(free[iso]):
+                if a == s:
+                    free[iso][idx] = (s + timedelta(minutes=est), free[iso][idx][1])
+                    break
+            placed_minutes[iso] += est
+            drafts.append(place(s, est, t, 1, "按剩余可用时间排期"))
+            return True
+        return False
 
     for t in ordered:
         est = max(15, int(t.get("estMinutes", 60)))
@@ -138,18 +196,13 @@ def build_drafts(
                     if (e - s).total_seconds() / 60 >= est:
                         drafts.append(place(s, est, t, placed + 1, f"周期任务每日 {est} 分钟（{placed + 1}/{dur_days}）"))
                         intervals[idx] = (s + timedelta(minutes=est), e)
+                        placed_minutes[iso] += est
                         placed += 1
                         break
         else:
-            for iso, intervals in free.items():
-                for idx, (s, e) in enumerate(intervals):
-                    if (e - s).total_seconds() / 60 >= est:
-                        drafts.append(place(s, est, t, 1, "按剩余可用时间排期"))
-                        intervals[idx] = (s + timedelta(minutes=est), e)
-                        break
-                else:
-                    continue
-                break
+            # 先按每日上限分散；装不下再退回最早贪心，避免因上限漏排
+            if not try_place_single(t, est, respect_cap=True):
+                try_place_single(t, est, respect_cap=False)
     return drafts
 
 

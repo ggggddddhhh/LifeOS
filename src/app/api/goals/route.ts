@@ -12,6 +12,12 @@ export async function GET() {
       tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { dependsOn: { select: { id: true, title: true } } } },
       // UI Redesign：计划历史（Activity/Detail 数据源）——纯数据透出，无逻辑变更
       versions: { orderBy: { revision: "desc" }, select: { id: true, revision: true, reason: true, diffJson: true, createdAt: true } },
+      // 已写入日历的事件（Calendar 页回显真实写入，而非只有计划投影）
+      calDrafts: {
+        where: { status: { in: ["executed", "duplicate_skipped"] } },
+        orderBy: { proposedStart: "asc" },
+        select: { id: true, taskId: true, taskTitle: true, proposedStart: true, proposedEnd: true, timezone: true, status: true },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
