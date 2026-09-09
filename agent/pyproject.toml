@@ -13,6 +13,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# Phase 8.5：生产 token 存储（LIFEOS_TOKEN_STORE=keyring 时需要；开发 file 模式不依赖）
+secure-token = ["keyring>=25.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -24,10 +24,17 @@ class FakeGoogleState:
         self.events: list[dict] = []
         self.next_id = 1
         self.create_calls = 0
-        self.fault: dict = {}  # {"create": "timeout_after_write"|"timeout_no_write"|"5xx"|"429", "get": "404"|"wrong_start", "list": "403"}
+        self.fault: dict = {}  # {"create": ..., "get": ..., "list": ...}
         self.refresh_calls = 0
         self.access_grant = "ok"  # ok | revoked
         self.precreated: list[dict] = []  # 服务器"已经"存在的事件（timeout-after-write 场景）
+        # Phase 8.5 故障注入扩展：
+        self.primary_email: str | None = None  # /calendars/primary 返回的账号（None=404）
+        self.token_fault: str | None = None  # token 端点瞬时故障："5xx_once" | "429_once"
+        self.revoke_status: int = 200
+        self.revoke_calls = 0
+        self.list_calls = 0  # GET events 次数（重试断言用）
+        self.reject_after_refresh = False  # 刷新"成功"但新 token 仍被 API 拒绝（auth_invalid 路径）
 
 
 STATE = FakeGoogleState()
@@ -37,9 +44,11 @@ class FakeGoogle(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _json(self, code, body):
+    def _json(self, code, body, headers=None):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(json.dumps(body).encode())
 
@@ -55,6 +64,9 @@ class FakeGoogle(BaseHTTPRequestHandler):
         raw = self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()
         if self.path.startswith("/token"):
             return self._handle_token(parse_qs(raw))
+        if self.path.startswith("/revoke"):
+            STATE.revoke_calls += 1
+            return self._json(STATE.revoke_status, {})
         if not self._authorized():
             return self._json(401, {"error": "invalid_credentials"})
         try:
@@ -83,10 +95,17 @@ class FakeGoogle(BaseHTTPRequestHandler):
     def _handle_token(self, form):
         STATE.refresh_calls += 1
         grant = form.get("grant_type", [""])[0]
+        # Phase 8.5：瞬时故障注入（保持 refresh token 有效——区别于 invalid_grant）
+        if STATE.token_fault == "5xx_once":
+            STATE.token_fault = None
+            return self._json(503, {"error": "backendError"})
+        if STATE.token_fault == "429_once":
+            STATE.token_fault = None
+            return self._json(429, {"error": "rate_limit"}, headers={"Retry-After": "0"})
         if STATE.access_grant == "revoked" and grant == "refresh_token":
             return self._json(400, {"error": "invalid_grant"})
         token = f"tok-{STATE.refresh_calls}"
-        STATE.access_grant_token = token
+        STATE.access_grant_token = "someone-else-token" if STATE.reject_after_refresh else token
         out = {"access_token": token, "expires_in": 3600}
         if grant == "authorization_code":
             out["refresh_token"] = "refresh-1"
@@ -97,8 +116,22 @@ class FakeGoogle(BaseHTTPRequestHandler):
             return self._json(401, {"error": "invalid_credentials"})
         u = urlparse(self.path)
         q = parse_qs(u.query)
+        if u.path.endswith("/calendars/primary"):
+            if not STATE.primary_email:
+                return self._json(404, {"error": "notFound"})
+            return self._json(200, {"id": STATE.primary_email, "summary": "primary"})
         if u.path.endswith("/events"):
-            if STATE.fault.get("list") == "403":
+            STATE.list_calls += 1
+            f = STATE.fault.get("list")
+            if f == "429_n2":  # 前 2 次 429（带 Retry-After: 0），之后恢复
+                if STATE.list_calls <= 2:
+                    return self._json(429, {"error": "rateLimitExceeded"}, headers={"Retry-After": "0"})
+            elif f == "429_forever":
+                return self._json(429, {"error": "rateLimitExceeded"}, headers={"Retry-After": "0"})
+            elif f == "5xx_n1":  # 第 1 次 5xx，之后恢复
+                if STATE.list_calls == 1:
+                    return self._json(503, {"error": "backendError"})
+            if f == "403":
                 return self._json(403, {"error": "forbidden"})
             if STATE.fault.get("list") == "403_api_disabled":
                 return self._json(403, {
@@ -152,8 +185,10 @@ def fake_server(monkeypatch, tmp_path):
     creds = tmp_path / "creds.json"
     creds.write_text(json.dumps({"installed": {"client_id": "cid", "client_secret": "sec"}}), encoding="utf-8")
     token_file = tmp_path / "token.json"
-    http = httpx.Client(timeout=5, base_url=f"http://127.0.0.1:{port}")
-    auth = GoogleOAuth(str(creds), str(token_file), http=http)
+    http = httpx.Client(timeout=5, base_url=f"http://127.0.0.1:{port}", trust_env=False)  # 隔离系统代理
+    monkeypatch.setenv("LIFEOS_GOOGLE_BACKOFF_BASE", "0.001")  # 测试退避近零
+    auth = GoogleOAuth(str(creds), str(token_file), http=http,
+                       api_base=f"http://127.0.0.1:{port}", session_file=str(tmp_path / "session.json"))
     # 直接注入一个有效 access（绕过授权流程；token 端点用于刷新测试）
     auth._access = "tok-0"
     auth._access_expiry = __import__("time").time() + 3600
@@ -164,7 +199,7 @@ def fake_server(monkeypatch, tmp_path):
     import app.google_calendar as gc
 
     monkeypatch.setattr(gc, "TOKEN_URL", f"http://127.0.0.1:{port}/token")
-    provider = GoogleCalendarProvider(auth, "primary", api_base=f"http://127.0.0.1:{port}")
+    provider = GoogleCalendarProvider(auth, "primary", api_base=f"http://127.0.0.1:{port}", http=httpx.Client(timeout=5, trust_env=False))
     yield provider, port
     server.shutdown()
 
@@ -310,13 +345,13 @@ class TestTokens:
         assert isinstance(events, list)  # 刷新后重放成功
         assert STATE.refresh_calls >= 1
 
-    def test_revoked_refresh_maps_auth_required(self, fake_server, monkeypatch, tmp_path):
+    def test_revoked_refresh_maps_reauth_required(self, fake_server, monkeypatch, tmp_path):
         provider, _ = fake_server
         STATE.access_grant = "revoked"
         STATE.access_grant_token = "expired"
         with pytest.raises(CalendarWriteError) as ei:
             provider.read_events()
-        assert ei.value.code in ("auth_required",)
+        assert ei.value.code in ("reauth_required",)
 
     def test_token_never_in_errors(self, fake_server):
         provider, _ = fake_server

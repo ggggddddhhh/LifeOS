@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!agent/.env.example
 
 # vercel
 .vercel
@@ -50,6 +51,8 @@ agent/__pycache__/
 **/__pycache__/
 .pytest_cache/
 
-# google oauth token
+# google oauth token（按用户分文件 + 授权会话，均不入库）
 agent/.google-token.json
+agent/.google-token-*.json
+agent/.google-auth-session.json
 agent/google-credentials.json

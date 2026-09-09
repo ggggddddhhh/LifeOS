@@ -32,9 +32,14 @@ MINUTES_PER_DAY = 1440
 
 
 class CalendarWriteError(Exception):
-    def __init__(self, code: str, message: str):
-        super().__init__(message)
-        self.code = code  # CAL_AUTH_INVALID | CAL_RATE_LIMIT | CAL_TIMEOUT | CAL_SERVER | CAL_CONFLICT | CAL_INVALID_DRAFT
+    """code 是稳定错误码；hint 是用户可理解的行动提示（Phase 8.5），随 str(e) 透传到 TS；
+    retry_after 是 429 响应建议的等待秒数（供读重试退避）。"""
+
+    def __init__(self, code: str, message: str, hint: str | None = None, retry_after: float | None = None):
+        super().__init__(f"{message}（提示：{hint}）" if hint else message)
+        self.code = code
+        self.hint = hint
+        self.retry_after = retry_after
 
 
 def make_uid(goal_id: str, plan_version: int, task_id: str, occurrence: int = 1) -> str:

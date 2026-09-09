@@ -91,3 +91,40 @@ class TestReplanContract:
             "tasks": [{"title": "a", "status": "blocked", "estMinutes": 60, "priority": 1}],
         })
         assert res.status_code == 422
+
+
+class TestCalendarOpsEndpoints:
+    """Phase 8.5：/v1/calendar/status 与 /v1/calendar/disconnect（google 模式下的运维面）。"""
+
+    def test_status_google_without_credentials(self, api_client, monkeypatch):
+        monkeypatch.setenv("CALENDAR_PROVIDER", "google")
+        monkeypatch.delenv("GOOGLE_CREDENTIALS_FILE", raising=False)
+        res = api_client.get("/v1/calendar/status")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["provider"] == "google" and body["connected"] is False
+        assert body["reason"] == "credentials_missing"
+
+    def test_disconnect_google_clears_and_reports(self, api_client, monkeypatch, tmp_path):
+        import json as _json
+
+        creds = tmp_path / "creds.json"
+        creds.write_text(_json.dumps({"installed": {"client_id": "cid", "client_secret": "sec"}}), encoding="utf-8")
+        token = tmp_path / "token.json"
+        token.write_text(_json.dumps({"refreshToken": "rt-1", "accountEmail": "a@x", "calendarId": "primary",
+                                      "scopes": [], "obtainedAt": "t"}), encoding="utf-8")
+        monkeypatch.setenv("CALENDAR_PROVIDER", "google")
+        monkeypatch.setenv("GOOGLE_CREDENTIALS_FILE", str(creds))
+        monkeypatch.setenv("GOOGLE_TOKEN_FILE", str(token))
+        res = api_client.post("/v1/calendar/disconnect")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["ok"] is True and "revoked" in body  # revoke 失败（无网络）也如实报 warning
+        assert not token.exists()  # 本地凭据必清
+        assert "rt-1" not in res.text  # token 值不进响应
+
+    def test_disconnect_non_google_409(self, api_client, monkeypatch):
+        monkeypatch.setenv("CALENDAR_PROVIDER", "ics")
+        res = api_client.post("/v1/calendar/disconnect")
+        assert res.status_code == 409
+        assert res.json()["error"]["code"] == "CAL_CONFLICT"

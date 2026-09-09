@@ -73,7 +73,8 @@ _google: "GoogleCalendarProvider | None" = None
 
 
 def _google_provider():
-    """Google Provider 单例（OAuth + calendarId）。凭据缺失时返回 None（工具停用，不崩）。"""
+    """Google Provider 单例（OAuth + calendarId）。凭据缺失时返回 None（工具停用，不崩）。
+    Phase 8.5：TokenStore 按环境选择（生产禁明文）；connect 做账号绑定校验。"""
     global _google
     import os
 
@@ -82,9 +83,14 @@ def _google_provider():
         if not creds:
             return None
         from .google_calendar import GoogleCalendarProvider, GoogleOAuth
+        from .token_store import make_token_store
 
-        auth = GoogleOAuth(creds, os.environ.get("GOOGLE_TOKEN_FILE", ".google-token.json"))
+        auth = GoogleOAuth(creds, make_token_store("default"))
         _google = GoogleCalendarProvider(auth, os.environ.get("GOOGLE_CALENDAR_ID", "primary"))
+        try:
+            _google.connect()  # 远端绑定校验失败 = 工具降级（fetch_facts 带错误提示），不崩服务
+        except Exception as e:  # noqa: BLE001 —— 打印稳定错误码（不含 token）
+            print(f"[calendar] connect 绑定校验失败: {getattr(e, 'code', type(e).__name__)}")
     return _google
 
 
@@ -158,6 +164,45 @@ def calendar_execute(req: ExecuteRequest):
         raise AgentError("CAL_AUTH_INVALID", "未配置 CAL_ICS_PATH（写目标缺失）", status_code=503, retryable=False)
     results = execute_drafts(req, provider)
     return ExecuteResponse(results=results, provider=name)
+
+
+@app.get("/v1/calendar/status")
+def calendar_status():
+    """连接状态（Phase 8.5 运维面）。绝不返回任何 token 值。"""
+    import os
+
+    if os.environ.get("CALENDAR_PROVIDER", "ics") != "google":
+        return {"provider": "ics", "connected": bool(os.environ.get("CAL_ICS_PATH"))}
+    creds = os.environ.get("GOOGLE_CREDENTIALS_FILE", "")
+    if not creds:
+        return {"provider": "google", "connected": False, "reason": "credentials_missing"}
+    from .google_calendar import GoogleOAuth
+    from .token_store import make_token_store
+
+    auth = GoogleOAuth(creds, make_token_store("default"))
+    out = auth.status()
+    return {"provider": "google", "store": type(auth.store).__name__, **out}
+
+
+@app.post("/v1/calendar/disconnect")
+def calendar_disconnect():
+    """断开 Google 连接：尽力 revoke 远端 token + 清除本地凭据；重置单例供 reconnect。"""
+    global _google
+    import os
+
+    if os.environ.get("CALENDAR_PROVIDER", "ics") != "google":
+        raise AgentError("CAL_CONFLICT", "当前 CALENDAR_PROVIDER 不是 google", status_code=409, retryable=False)
+    creds = os.environ.get("GOOGLE_CREDENTIALS_FILE", "")
+    if not creds:
+        raise AgentError("auth_required", "缺少 GOOGLE_CREDENTIALS_FILE", status_code=503, retryable=False)
+    from .google_calendar import GoogleOAuth
+    from .token_store import make_token_store
+
+    # 直接新开 OAuth 读当前 store（单例可能持有过期内存态）；revoke 成功与否都清本地
+    auth = GoogleOAuth(creds, make_token_store("default"))
+    out = auth.disconnect()
+    _google = None  # 下次请求重建（reconnect = 重跑授权流程）
+    return {"ok": out["ok"], "revoked": out["revoked"], "warning": out["warning"]}
 
 
 @app.get("/health")
