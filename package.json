@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:eval": "vitest run --config vitest.eval.config.ts",
+    "test:m3": "vitest run --config vitest.eval.config.ts m3",
     "db:push": "prisma db push",
     "db:push:test": "node scripts/db-push-test.mjs"
   },

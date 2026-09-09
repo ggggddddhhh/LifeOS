@@ -1,0 +1,100 @@
+{
+  "ranAt": "2026-09-09T01:20:02.722Z",
+  "rounds": 3,
+  "local": {
+    "planner": {
+      "calls": 30,
+      "passRate": 100,
+      "failRate": 0,
+      "taskCountDist": {
+        "6": 4,
+        "7": 14,
+        "8": 12
+      },
+      "minimalRate": 0,
+      "dupRate": 0,
+      "rawDateOutOfRangeRate": 0,
+      "sanitizedDateOutOfRangeRate": 0,
+      "depsInvalidRate": 0,
+      "overloadRate": 0
+    },
+    "replan": {
+      "calls": 27,
+      "passRate": 100,
+      "failRate": 0,
+      "expansionAvg": 0.91,
+      "expandedRate": 0,
+      "overloadRate": 0,
+      "doneLeakRate": 0,
+      "minimalRate": 0,
+      "keptAvg": 3.9
+    },
+    "latency": {
+      "avg": 3336,
+      "p50": 3199,
+      "p95": 5214
+    },
+    "llmRetryRate": 0,
+    "minimalSamples": {
+      "planner": [],
+      "replan": []
+    },
+    "source": "m3-local-results.json"
+  },
+  "python": {
+    "planner": {
+      "calls": 30,
+      "passRate": 100,
+      "failRate": 0,
+      "taskCountDist": {
+        "5": 1,
+        "6": 2,
+        "7": 12,
+        "8": 15
+      },
+      "minimalRate": 0,
+      "dupRate": 0,
+      "rawDateOutOfRangeRate": 0,
+      "sanitizedDateOutOfRangeRate": 0,
+      "depsInvalidRate": 0,
+      "overloadRate": 3.3
+    },
+    "replan": {
+      "calls": 27,
+      "passRate": 100,
+      "failRate": 0,
+      "expansionAvg": 0.88,
+      "expandedRate": 0,
+      "overloadRate": 0,
+      "doneLeakRate": 0,
+      "minimalRate": 7.4,
+      "keptAvg": 3.3
+    },
+    "latency": {
+      "avg": 3343,
+      "p50": 3442,
+      "p95": 4958
+    },
+    "llmRetryRate": 0,
+    "minimalSamples": {
+      "planner": [],
+      "replan": [
+        {
+          "scenario": "延期",
+          "goal": "100 天内雅思总分考到 6.5",
+          "round": 1,
+          "taskCount": 2,
+          "openCount": 6
+        },
+        {
+          "scenario": "延期",
+          "goal": "100 天内雅思总分考到 6.5",
+          "round": 2,
+          "taskCount": 1,
+          "openCount": 6
+        }
+      ]
+    },
+    "source": "m3-python-results.json"
+  }
+}

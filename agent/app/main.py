@@ -89,6 +89,7 @@ def _raise_if_failed(state: dict) -> None:
 
 
 VERSION_HEADER = "x-prompt-version"
+LLM_CALLS_HEADER = "x-llm-calls"  # 本次请求实际 LLM 调用次数（1=一次成功，2=发生过一次重试）
 
 
 @app.post("/v1/plan", response_model=PlanResponse)
@@ -97,7 +98,7 @@ def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep)):
     _raise_if_failed(state)
     return JSONResponse(
         status_code=200,
-        headers={VERSION_HEADER: PROMPT_VERSION},
+        headers={VERSION_HEADER: PROMPT_VERSION, LLM_CALLS_HEADER: str(state.get("llm_calls", 0))},
         content=PlanResponse(tasks=[PlannedTask(**t) for t in state["tasks"]]).model_dump(),
     )
 
@@ -108,6 +109,6 @@ def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep)):
     _raise_if_failed(state)
     return JSONResponse(
         status_code=200,
-        headers={VERSION_HEADER: PROMPT_VERSION},
+        headers={VERSION_HEADER: PROMPT_VERSION, LLM_CALLS_HEADER: str(state.get("llm_calls", 0))},
         content=ReplanResponse(reason=state["reason"], tasks=[PlannedTask(**t) for t in state["tasks"]]).model_dump(),
     )

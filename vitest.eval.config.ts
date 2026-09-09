@@ -16,7 +16,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: "file:./test.db",
       LLM_BASE_URL: process.env.LLM_EVAL_BASE_URL ?? "https://api.deepseek.com",
-      LLM_API_KEY: process.env.DEEPSEEK_API_KEY ?? "",
+      LLM_API_KEY: process.env.LLM_EVAL_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? "",
       LLM_MODEL: process.env.LLM_EVAL_MODEL ?? "deepseek-chat",
     },
     testTimeout: 240000,

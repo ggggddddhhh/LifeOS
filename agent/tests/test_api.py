@@ -53,6 +53,7 @@ class TestPlanContract:
         res = api_client.post("/v1/plan", json={"title": "x"})
         assert res.status_code == 200
         assert res.headers["x-prompt-version"] == "2"
+        assert res.headers["x-llm-calls"] == "1"  # mock 一次成功
 
     def test_replan_prompt_version_header(self, api_client):
         res = api_client.post("/v1/replan", json={
