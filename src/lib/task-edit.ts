@@ -177,7 +177,7 @@ export function checkTaskEdit(params: {
       estMinutes: s.estMinutes,
       dueDate: s.dueDate ? s.dueDate.toISOString().slice(0, 10) : null,
     }));
-  const newDiff = computePlanDiff(oldOpen, projectedOpen.map((t) => ({ ...t, priority: task.priority })));
+  const newDiff = computePlanDiff(oldOpen, projectedOpen.map((t) => ({ ...t, priority: task.priority, dueDate: t.dueDate ?? undefined })));
 
   return { ok: true, changes, warnings, calendarHint: false, newDiff, projectedOpen };
 }

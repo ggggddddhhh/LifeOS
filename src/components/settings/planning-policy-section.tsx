@@ -137,7 +137,7 @@ export function PlanningPolicySection() {
         setError(json.error ?? "保存失败");
         return;
       }
-      setPolicy(json.data.policy);
+      if (json.data) setPolicy(json.data.policy);
       setImpact(null);
       setSavedNote(
         payload.calendarId !== "primary"

@@ -276,7 +276,8 @@ export async function undoLastReplan(goalId: string, runId: string) {
   const restored = snapshot.map((s) => ({
     title: s.title,
     estMinutes: s.estMinutes,
-    dueDate: s.dueDate,
+    priority: s.priority,
+    dueDate: s.dueDate ?? undefined,
   }));
   const diff = computePlanDiff(oldOpen, restored);
 

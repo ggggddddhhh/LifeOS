@@ -147,10 +147,9 @@ export function validatePolicyPatch(
 
 /** 策略 → 每日声明容量数组（Python ReplanRequest.declaredMinutesPerDay，长度=daysLeft）：
  *  工作日 = dailyCapacityMinutes，非工作日 = 0。用户策略 = 三层容量语义中的「声明层」。 */
-export function declaredMinutesPerDay(daysLeft: number, policy: PlanningPolicy): number[] {
+export function declaredMinutesPerDay(daysLeft: number, policy: PlanningPolicy, today = new Date()): number[] {
   const ws = new Set(policy.workdays);
   const out: number[] = [];
-  const today = new Date();
   let cur = new Date(`${today.toISOString().slice(0, 10)}T00:00:00Z`).getTime();
   for (let i = 0; i < daysLeft; i++) {
     const iso = ((new Date(cur).getUTCDay() + 6) % 7) + 1;

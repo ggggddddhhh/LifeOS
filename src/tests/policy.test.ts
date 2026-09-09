@@ -123,7 +123,6 @@ describe("GET/PATCH /api/settings/planning", () => {
 
     const res = await patchPolicy(
       jsonReq("/api/settings/planning?impact=1", "PATCH", { dailyCapacityMinutes: 60 }),
-      undefined as never,
     );
     const json = (await res.json()) as {
       ok: boolean;
@@ -140,7 +139,6 @@ describe("GET/PATCH /api/settings/planning", () => {
   it("非法更新 400（开始晚于结束）", async () => {
     const res = await patchPolicy(
       jsonReq("/api/settings/planning", "PATCH", { workStartMinute: 1200, workEndMinute: 480 }),
-      undefined as never,
     );
     expect(res.status).toBe(400);
   });
@@ -148,7 +146,6 @@ describe("GET/PATCH /api/settings/planning", () => {
   it("正式保存落库并可读回；返回影响", async () => {
     const res = await patchPolicy(
       jsonReq("/api/settings/planning", "PATCH", { dailyCapacityMinutes: 120, workdays: [1, 2, 3, 4, 5], defaultEstMinutes: 120 }),
-      undefined as never,
     );
     const json = (await res.json()) as { ok: boolean; data?: { policy: PlanningPolicy; impact: unknown } };
     expect(json.ok).toBe(true);
@@ -200,7 +197,6 @@ describe("策略接入：创建默认值 / 改设置后的 Replan", () => {
   it("0 容量策略：Replan 仍可运行（守卫按最小可行收敛），不崩溃", async () => {
     await patchPolicy(
       jsonReq("/api/settings/planning", "PATCH", { dailyCapacityMinutes: 0 }),
-      undefined as never,
     );
     const goal = await createTestGoal("0 容量测试", 3);
     const res = await replan(jsonReq(`/api/goals/${goal.id}/replan`, "POST"), {
@@ -211,7 +207,6 @@ describe("策略接入：创建默认值 / 改设置后的 Replan", () => {
     // 恢复默认，避免污染后续用例
     await patchPolicy(
       jsonReq("/api/settings/planning", "PATCH", { dailyCapacityMinutes: 480, workdays: [1, 2, 3, 4, 5, 6, 7] }),
-      undefined as never,
     );
   });
 });
