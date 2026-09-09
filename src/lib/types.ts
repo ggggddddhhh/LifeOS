@@ -13,7 +13,34 @@ export interface PlannedTask {
   title: string;
   notes?: string;
   priority: number; // 1 高 2 中 3 低
-  estMinutes: number;
+  estMinutes: number; // 单次型=总耗时；周期型=每次耗时
+  durationDays?: number; // ≥1 时为周期型任务
+  startDate?: string; // YYYY-MM-DD
+  dueDate?: string; // YYYY-MM-DD
+  dependsOn?: string[]; // 依赖的其他任务标题
+}
+
+/** 计划版本 diff（replan 时生成，要求 #3） */
+export interface PlanDiffItem {
+  title: string;
+  estMinutes?: number;
+  estMinutesFrom?: number;
+  estMinutesTo?: number;
+  dueFrom?: string | null;
+  dueTo?: string | null;
+  moved?: "延后" | "提前" | "不变";
+}
+
+export interface PlanDiff {
+  added: PlanDiffItem[]; // 新标题
+  removed: PlanDiffItem[]; // 旧标题消失（done 任务永不在此）
+  changed: PlanDiffItem[]; // 保留但估时/日期变化
+  summary: {
+    added: number;
+    removed: number;
+    kept: number;
+    estDelta: number; // 新计划总估时 - 旧未完成总估时（分钟）
+  };
 }
 
 export interface PlanGoalInput {
@@ -27,6 +54,7 @@ export interface TaskSnapshot {
   status: TaskStatus;
   estMinutes: number;
   priority: number;
+  dueDate?: string | null;
 }
 
 export interface ReplanInput {

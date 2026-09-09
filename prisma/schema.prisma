@@ -8,29 +8,49 @@ datasource db {
 }
 
 model Goal {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   title       String
   description String?
   deadline    DateTime?
-  status      String   @default("active") // active | achieved | archived
-  revision    Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      String        @default("active") // active | achieved | archived
+  revision    Int           @default(1)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   tasks       Task[]
+  versions    PlanVersion[]
 }
 
 model Task {
-  id         String   @id @default(cuid())
-  goalId     String
-  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  title      String
-  notes      String?
-  status     String   @default("todo") // todo | in_progress | done
-  priority   Int      @default(2) // 1 高 2 中 3 低
-  estMinutes Int      @default(60)
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String    @id @default(cuid())
+  goalId       String
+  goal         Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title        String
+  notes        String?
+  status       String    @default("todo") // todo | in_progress | done
+  priority     Int       @default(2) // 1 高 2 中 3 低
+  estMinutes   Int       @default(60)
+  order        Int       @default(0)
+  // Phase 2：调度与周期
+  startDate    DateTime? // 执行窗口起点（当日零点）
+  dueDate      DateTime? // 计划完成日
+  durationDays Int? // 持续周期（天），≥1；设置后为周期型任务
+  // Phase 2：依赖（自关联多对多）
+  dependsOn    Task[]    @relation("TaskDependencies")
+  dependents   Task[]    @relation("TaskDependencies")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([goalId, status])
+}
+
+model PlanVersion {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  revision  Int
+  reason    String
+  diffJson  String // JSON.stringify(PlanDiff)
+  createdAt DateTime @default(now())
+
+  @@unique([goalId, revision])
 }

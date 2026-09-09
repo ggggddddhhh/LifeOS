@@ -140,6 +140,77 @@ describe("POST /api/goals/:id/replan", () => {
   });
 });
 
+describe("POST /api/goals（Phase 2：日期/周期/依赖/版本）", () => {
+  it("创建后任务带调度字段、依赖连通、落 PlanVersion v1", async () => {
+    const res = await createGoal(jsonReq("/api/goals", "POST", {
+      title: "集成测试：Phase2 调度",
+      deadline: new Date(Date.now() + 14 * 86400000).toISOString(),
+    }));
+    const json = (await res.json()) as {
+      ok: boolean;
+      data?: {
+        id: string;
+        tasks: { id: string; title: string; startDate?: string | null; dueDate?: string | null; durationDays?: number | null; dependsOn: { title: string }[] }[];
+      };
+    };
+    expect(json.ok).toBe(true);
+    cleanupIds.push(json.data!.id);
+    const goal = json.data!;
+
+    // mock planner 至少产生一个带日期的任务与一个周期型任务
+    expect(goal.tasks.some((t) => t.dueDate)).toBe(true);
+    expect(goal.tasks.some((t) => t.durationDays && t.durationDays >= 1)).toBe(true);
+    // 依赖已连接到真实任务标题
+    const depTask = goal.tasks.find((t) => t.dependsOn.length > 0);
+    expect(depTask).toBeTruthy();
+    const titles = new Set(goal.tasks.map((t) => t.title));
+    expect(depTask!.dependsOn.every((d) => titles.has(d.title))).toBe(true);
+
+    const version = await prisma.planVersion.findUnique({
+      where: { goalId_revision: { goalId: goal.id, revision: 1 } },
+    });
+    expect(version).toBeTruthy();
+    const diff = JSON.parse(version!.diffJson);
+    expect(diff.summary.added).toBe(goal.tasks.length); // 初始计划 = 全部新增
+  });
+});
+
+describe("POST /api/goals/:id/replan（Phase 2：diff + 版本）", () => {
+  it("生成 diff（mock 保标题 → 无新增/删除，估时压缩进 changed）并落 PlanVersion v2", async () => {
+    const goal = await createTestGoal("集成测试：Phase2 diff");
+    // 完成第一个任务，剩余交给 replan
+    await patchTask(jsonReq(`/api/tasks/${goal.tasks[0].id}`, "PATCH", { status: "done" }), {
+      params: Promise.resolve({ id: goal.tasks[0].id }),
+    });
+
+    const res = await replan(jsonReq(`/api/goals/${goal.id}/replan`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    const json = (await res.json()) as {
+      ok: boolean;
+      data?: {
+        reason: string;
+        diff: { added: unknown[]; removed: unknown[]; changed: { estMinutesFrom: number; estMinutesTo: number }[]; summary: { kept: number } };
+        goal: { revision: number };
+      };
+    };
+    expect(json.ok).toBe(true);
+    expect(json.data!.goal.revision).toBe(2);
+    // mock replan 严格沿用标题：无新增无删除，全部保留
+    expect(json.data!.diff.added).toEqual([]);
+    expect(json.data!.diff.removed).toEqual([]);
+    expect(json.data!.diff.summary.kept).toBe(goal.tasks.length - 1);
+    // 估时被压缩 → changed 里 estMinutesTo < estMinutesFrom（至少一条）
+    expect(json.data!.diff.changed.some((c) => c.estMinutesTo < c.estMinutesFrom)).toBe(true);
+
+    const version = await prisma.planVersion.findUnique({
+      where: { goalId_revision: { goalId: goal.id, revision: 2 } },
+    });
+    expect(version).toBeTruthy();
+    expect(JSON.parse(version!.diffJson).summary.kept).toBe(goal.tasks.length - 1);
+  });
+});
+
 describe("DELETE /api/goals/:id", () => {
   it("删除目标并级联删除任务", async () => {
     const goal = await createTestGoal("集成测试：删除");

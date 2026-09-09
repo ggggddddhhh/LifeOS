@@ -10,7 +10,7 @@ export function normalizePlannedTasks(raw: unknown): PlannedTask[] {
     const r = item as Record<string, unknown>;
     if (typeof r.title !== "string" || r.title.trim().length === 0) continue;
     const title = r.title.trim().slice(0, 200);
-    const normalized = title.toLowerCase().replace(/[\s，。、,.:：;；!！?？·\-—_/\\()（）\[\]【】"'"']+/g, "");
+    const normalized = normalizeTitle(title);
     if (seenTitles.has(normalized)) continue;
     seenTitles.add(normalized);
     const estMinutes =
@@ -22,16 +22,43 @@ export function normalizePlannedTasks(raw: unknown): PlannedTask[] {
       Number.isFinite(priorityRaw) && priorityRaw >= 1 && priorityRaw <= 3
         ? Math.round(priorityRaw)
         : 2;
+    // Phase 2 新字段：周期、日期、依赖（全部可选，非法值丢弃）
+    const durationDays =
+      Number.isFinite(Number(r.durationDays)) && Number(r.durationDays) >= 1
+        ? Math.min(365, Math.round(Number(r.durationDays)))
+        : undefined;
+    const startDate = parseDateStr(r.startDate);
+    const dueDate = parseDateStr(r.dueDate);
+    const dependsOn =
+      Array.isArray(r.dependsOn) && r.dependsOn.length > 0
+        ? r.dependsOn.filter((d): d is string => typeof d === "string" && d.trim().length > 0).map((d) => d.trim().slice(0, 200))
+        : undefined;
     out.push({
       title,
-      ...(typeof r.notes === "string" && r.notes.trim()
-        ? { notes: r.notes.trim().slice(0, 500) }
-        : {}),
+      ...(typeof r.notes === "string" && r.notes.trim() ? { notes: r.notes.trim().slice(0, 500) } : {}),
       priority,
       estMinutes,
+      ...(durationDays ? { durationDays } : {}),
+      ...(startDate ? { startDate } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      ...(dependsOn && dependsOn.length > 0 ? { dependsOn } : {}),
     });
   }
   return out.slice(0, 20);
+}
+
+/** 只接受 YYYY-MM-DD，返回原字符串或 undefined */
+export function parseDateStr(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return undefined;
+  const d = new Date(`${v.trim()}T00:00:00Z`);
+  return isNaN(d.getTime()) ? undefined : v.trim();
+}
+
+/** 标题归一化：小写 + 去空白与常见标点，用于判重与 diff 匹配 */
+export function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/[\s，。、,.:：;；!！?？·\-—_/\\()（）\[\]【】"'"']+/g, "");
 }
 
 /** 从 LLM 文本输出中提取 JSON 数组/对象（兼容 ```json 包裹） */

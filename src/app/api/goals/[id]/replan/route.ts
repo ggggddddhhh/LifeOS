@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { replanGoal } from "@/lib/llm";
-import type { TaskSnapshot } from "@/lib/types";
+import { computePlanDiff, enforceTaskBudget, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
+import { normalizeTitle } from "@/lib/llm/parse";
+import type { PlanDiff, TaskSnapshot } from "@/lib/types";
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -27,6 +29,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       status: t.status as TaskSnapshot["status"],
       estMinutes: t.estMinutes,
       priority: t.priority,
+      dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
     }));
 
     const result = await replanGoal({
@@ -37,32 +40,73 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       tasks: snapshots,
     });
 
+    // Phase 2：清洗 + 反扩散 guard + diff（在改动数据库前完成全部计算）
+    const { deps } = sanitizeDependencies(result.tasks);
+    const today = new Date().toISOString().slice(0, 10);
+    sanitizeSchedule(result.tasks, deps, { today, deadline: goal.deadline?.toISOString().slice(0, 10) ?? null });
+    const oldOpenTitles = new Set(openTasks.map((t) => normalizeTitle(t.title)));
+    const finalTasks = enforceTaskBudget(result.tasks, oldOpenTitles);
+
+    const oldOpen = openTasks.map((t) => ({
+      title: t.title,
+      estMinutes: t.estMinutes,
+      dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
+    }));
+    const diff: PlanDiff = computePlanDiff(oldOpen, finalTasks);
+
     const updated = await prisma.$transaction(async (tx) => {
       // 保留已完成任务，重写未完成任务
       await tx.task.deleteMany({ where: { goalId: goal.id, status: { not: "done" } } });
-      const remaining = await tx.task.findMany({
-        where: { goalId: goal.id },
-        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-      });
+      const remaining = await tx.task.findMany({ where: { goalId: goal.id } });
       const baseOrder = remaining.length;
-      await tx.task.createMany({
-        data: result.tasks.map((t, i) => ({
-          goalId: goal.id,
-          title: t.title,
-          notes: t.notes,
-          priority: t.priority,
-          estMinutes: t.estMinutes,
-          order: baseOrder + i,
-        })),
-      });
-      return tx.goal.update({
+      const created: { id: string; title: string }[] = [];
+      for (let i = 0; i < finalTasks.length; i++) {
+        const t = finalTasks[i];
+        const task = await tx.task.create({
+          data: {
+            goalId: goal.id,
+            title: t.title,
+            notes: t.notes,
+            priority: t.priority,
+            estMinutes: t.estMinutes,
+            order: baseOrder + i,
+            startDate: t.startDate ? new Date(`${t.startDate}T00:00:00Z`) : undefined,
+            dueDate: t.dueDate ? new Date(`${t.dueDate}T00:00:00Z`) : undefined,
+            durationDays: t.durationDays,
+          },
+        });
+        created.push({ id: task.id, title: task.title });
+      }
+      // 连接依赖：新任务之间 + 对保留(done)任务的依赖
+      const idByTitle = new Map(created.map((c) => [normalizeTitle(c.title), c.id]));
+      for (const done of remaining) idByTitle.set(normalizeTitle(done.title), done.id);
+      for (const [key, ds] of Object.entries(deps)) {
+        if (ds.length === 0) continue;
+        const taskId = idByTitle.get(key);
+        const targets = ds.map((d) => idByTitle.get(d)).filter((v): v is string => !!v);
+        if (!taskId || targets.length === 0) continue;
+        await tx.task.update({
+          where: { id: taskId },
+          data: { dependsOn: { connect: targets.map((tid) => ({ id: tid })) } },
+        });
+      }
+      const goalUpdated = await tx.goal.update({
         where: { id: goal.id },
         data: { revision: { increment: 1 } },
-        include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] } },
+        include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { dependsOn: { select: { id: true, title: true } } } } },
       });
+      await tx.planVersion.create({
+        data: {
+          goalId: goal.id,
+          revision: goalUpdated.revision,
+          reason: result.reason,
+          diffJson: JSON.stringify(diff),
+        },
+      });
+      return goalUpdated;
     });
 
-    return NextResponse.json({ ok: true, data: { reason: result.reason, goal: updated } });
+    return NextResponse.json({ ok: true, data: { reason: result.reason, diff, goal: updated } });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Replan 失败" },
