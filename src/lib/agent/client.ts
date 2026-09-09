@@ -37,6 +37,7 @@ export interface AgentCallMeta {
   fallbackReason?: FallbackReason;
   latencyMs: number;
   at: string; // ISO
+  promptVersion?: string; // python 路径成功时的 x-prompt-version（观测用）
 }
 
 // 最近的调用遥测（环形，仅供测试观测与排障，不进用户响应）
@@ -73,7 +74,7 @@ async function callPython(
   op: "plan" | "replan",
   path: string,
   body: unknown,
-): Promise<unknown> {
+): Promise<{ data: unknown; promptVersion: string }> {
   const { baseUrl, timeoutMs } = getConfig();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -101,9 +102,9 @@ async function callPython(
     throw new RemoteAgentError(`http_${res.status}` as FallbackReason, `Agent 返回 ${res.status}: ${errBody.slice(0, 200)}`);
   }
 
-  const version = res.headers.get("x-prompt-version");
-  if (version !== EXPECTED_PROMPT_VERSION) {
-    throw new RemoteAgentError("version_mismatch", `prompt 版本不一致：期望 ${EXPECTED_PROMPT_VERSION}，实际 ${version ?? "无"}`);
+  const promptVersion = res.headers.get("x-prompt-version") ?? "";
+  if (promptVersion !== EXPECTED_PROMPT_VERSION) {
+    throw new RemoteAgentError("version_mismatch", `prompt 版本不一致：期望 ${EXPECTED_PROMPT_VERSION}，实际 ${promptVersion || "无"}`);
   }
 
   let data: unknown;
@@ -112,7 +113,7 @@ async function callPython(
   } catch {
     throw new RemoteAgentError("bad_json", "Agent 响应不是合法 JSON");
   }
-  return data;
+  return { data, promptVersion };
 }
 
 /** 契约复验（要求 #1）：对 Python 响应再跑 TS 规范化，不通过视为 schema 不匹配 */
@@ -147,7 +148,7 @@ function validateReplanResponse(data: unknown): ReplanResult {
 
 async function withFallback<T>(
   op: "plan" | "replan",
-  remote: () => Promise<T>,
+  remote: () => Promise<{ value: T; promptVersion: string }>,
   local: () => Promise<T>,
 ): Promise<T> {
   const { mode } = getConfig();
@@ -161,9 +162,9 @@ async function withFallback<T>(
   const start = Date.now();
   if (mode === "python") {
     try {
-      const out = await remote();
-      record({ op, provider: "python", latencyMs: Date.now() - start, at: new Date().toISOString() });
-      return out;
+      const { value, promptVersion } = await remote();
+      record({ op, provider: "python", latencyMs: Date.now() - start, at: new Date().toISOString(), promptVersion });
+      return value;
     } catch (e) {
       record({
         op,
@@ -179,9 +180,9 @@ async function withFallback<T>(
 
   // auto：Python 优先，失败降级 local
   try {
-    const out = await remote();
-    record({ op, provider: "python", latencyMs: Date.now() - start, at: new Date().toISOString() });
-    return out;
+    const { value, promptVersion } = await remote();
+    record({ op, provider: "python", latencyMs: Date.now() - start, at: new Date().toISOString(), promptVersion });
+    return value;
   } catch (e) {
     const reason = e instanceof RemoteAgentError ? e.reason : "network";
     logFallback(op, reason, e instanceof Error ? e.message : String(e));
@@ -201,7 +202,10 @@ async function withFallback<T>(
 export async function agentPlanGoal(input: PlanGoalInput): Promise<PlannedTask[]> {
   return withFallback(
     "plan",
-    async () => validatePlanResponse(await callPython("plan", "/v1/plan", input)),
+    async () => {
+      const { data, promptVersion } = await callPython("plan", "/v1/plan", input);
+      return { value: validatePlanResponse(data), promptVersion };
+    },
     () => localPlanGoal(input),
   );
 }
@@ -209,7 +213,10 @@ export async function agentPlanGoal(input: PlanGoalInput): Promise<PlannedTask[]
 export async function agentReplanGoal(input: ReplanInput): Promise<ReplanResult> {
   return withFallback(
     "replan",
-    async () => validateReplanResponse(await callPython("replan", "/v1/replan", input)),
+    async () => {
+      const { data, promptVersion } = await callPython("replan", "/v1/replan", input);
+      return { value: validateReplanResponse(data), promptVersion };
+    },
     () => localReplanGoal(input),
   );
 }

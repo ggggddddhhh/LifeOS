@@ -1,103 +1,97 @@
 {
   "model": "deepseek-chat",
-  "ranAt": "2026-09-09T00:34:49.994Z",
+  "ranAt": "2026-09-09T01:26:18.225Z",
   "records": [
     {
       "goal": "30 天内学会 Rust 基础并写出一个 CLI 待办事项工具",
-      "deadline": "2026-10-09T00:34:06.866Z",
+      "deadline": "2026-10-09T01:25:30.925Z",
       "daysLeft": 30,
       "ok": true,
-      "latencyMs": 4062,
+      "latencyMs": 4688,
       "tasks": [
         {
-          "title": "制定学习计划与资源收集",
-          "notes": "确定学习路径，收集官方文档、推荐书籍和视频教程",
+          "title": "安装 Rust 工具链并完成 Hello World",
+          "notes": "安装 rustup，配置编辑器，运行第一个 Rust 程序",
           "priority": 1,
           "estMinutes": 120,
           "startDate": "2026-09-09",
           "dueDate": "2026-09-10"
         },
         {
-          "title": "学习 Rust 基础语法（变量、类型、函数、控制流）",
-          "notes": "通过《Rust 程序设计语言》前 6 章，完成练习题",
+          "title": "学习 Rust 基础语法（变量、数据类型、函数、控制流）",
+          "notes": "通过官方 Rust Book 前几章学习",
           "priority": 1,
-          "estMinutes": 90,
-          "durationDays": 5,
+          "estMinutes": 300,
           "startDate": "2026-09-10",
           "dueDate": "2026-09-14",
           "dependsOn": [
-            "制定学习计划与资源收集"
+            "安装 Rust 工具链并完成 Hello World"
           ]
         },
         {
           "title": "学习所有权、借用与生命周期",
-          "notes": "理解核心概念，完成相关代码练习",
+          "notes": "理解 Rust 核心概念，完成相关练习",
           "priority": 1,
-          "estMinutes": 90,
-          "durationDays": 5,
+          "estMinutes": 360,
           "startDate": "2026-09-14",
           "dueDate": "2026-09-18",
           "dependsOn": [
-            "学习 Rust 基础语法（变量、类型、函数、控制流）"
+            "学习 Rust 基础语法（变量、数据类型、函数、控制流）"
           ]
         },
         {
           "title": "学习结构体、枚举与模式匹配",
-          "notes": "掌握自定义数据类型和匹配逻辑",
+          "notes": "掌握自定义数据类型和匹配",
           "priority": 2,
-          "estMinutes": 90,
-          "durationDays": 5,
+          "estMinutes": 240,
           "startDate": "2026-09-18",
-          "dueDate": "2026-09-22",
+          "dueDate": "2026-09-21",
           "dependsOn": [
             "学习所有权、借用与生命周期"
           ]
         },
         {
-          "title": "学习错误处理、模块与文件 I/O",
-          "notes": "掌握 Result/Option、模块组织及文件读写",
+          "title": "学习错误处理与常用集合",
+          "notes": "掌握 Result/Option，使用 Vec、HashMap 等",
           "priority": 2,
-          "estMinutes": 90,
-          "durationDays": 5,
-          "startDate": "2026-09-22",
-          "dueDate": "2026-09-26",
+          "estMinutes": 240,
+          "startDate": "2026-09-21",
+          "dueDate": "2026-09-24",
           "dependsOn": [
             "学习结构体、枚举与模式匹配"
           ]
         },
         {
-          "title": "设计 CLI 待办事项工具架构",
-          "notes": "定义功能需求、数据结构、命令接口（如 add/list/done）",
-          "priority": 1,
-          "estMinutes": 120,
-          "startDate": "2026-09-26",
+          "title": "学习文件读写与命令行参数解析",
+          "notes": "为 CLI 工具做准备，学习 std::fs 和 env::args",
+          "priority": 2,
+          "estMinutes": 180,
+          "startDate": "2026-09-24",
           "dueDate": "2026-09-27",
           "dependsOn": [
-            "学习错误处理、模块与文件 I/O"
+            "学习错误处理与常用集合"
           ]
         },
         {
-          "title": "实现 CLI 待办事项工具核心功能",
-          "notes": "使用 Rust 编写代码，实现增删改查及持久化存储",
+          "title": "设计并实现 CLI 待办事项工具",
+          "notes": "支持添加、列出、完成、删除任务，数据持久化到文件",
           "priority": 1,
-          "estMinutes": 180,
-          "durationDays": 8,
+          "estMinutes": 480,
           "startDate": "2026-09-27",
-          "dueDate": "2026-10-04",
+          "dueDate": "2026-10-05",
           "dependsOn": [
-            "设计 CLI 待办事项工具架构"
+            "学习文件读写与命令行参数解析"
           ]
         },
         {
-          "title": "测试、调试并完善项目",
-          "notes": "编写单元测试，修复 bug，优化用户体验，撰写 README",
+          "title": "测试、重构并编写使用文档",
+          "notes": "添加单元测试，优化代码，编写 README",
           "priority": 2,
-          "estMinutes": 120,
-          "durationDays": 6,
-          "startDate": "2026-10-04",
-          "dueDate": "2026-10-09",
+          "estMinutes": 240,
+          "startDate": "2026-10-05",
+          "dueDate": "2026-10-08",
           "dependsOn": [
-            "实现 CLI 待办事项工具核心功能"
+            "设计并实现 CLI 待办事项工具"
           ]
         }
       ],
@@ -106,88 +100,85 @@
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 140,
+      "minutesPerDay": 72,
       "overload": false,
       "datesCoverage": 1,
-      "periodicCount": 6,
+      "periodicCount": 0,
       "datesInRange": true,
       "depsValid": true,
       "rawDatesInRange": true
     },
     {
       "goal": "三个月内减重 8 公斤",
-      "deadline": "2026-12-08T00:34:10.931Z",
+      "deadline": "2026-12-08T01:25:35.616Z",
       "daysLeft": 90,
       "ok": true,
-      "latencyMs": 3606,
+      "latencyMs": 4163,
       "tasks": [
         {
-          "title": "制定减重计划与饮食方案",
-          "notes": "根据当前体重和久坐情况，设定每周减重目标，规划每日热量摄入和营养配比",
+          "title": "制定减重计划与基线评估",
+          "notes": "记录初始体重、体脂率，设定每周减重目标，规划饮食与运动方案",
           "priority": 1,
           "estMinutes": 120,
           "startDate": "2026-09-09",
           "dueDate": "2026-09-11"
         },
         {
-          "title": "每周4次有氧运动训练",
-          "notes": "每次至少30分钟中等强度有氧，如快走、慢跑或骑行，持续12周",
+          "title": "每周4次有氧运动（跑步或快走）",
+          "notes": "每次30-45分钟，保持心率在燃脂区间，逐步增加强度",
           "priority": 1,
-          "estMinutes": 40,
+          "estMinutes": 45,
           "durationDays": 88,
           "startDate": "2026-09-12",
           "dueDate": "2026-12-08",
           "dependsOn": [
-            "制定减重计划与饮食方案"
+            "制定减重计划与基线评估"
           ]
         },
         {
           "title": "每周2次力量训练",
-          "notes": "针对核心和下肢，提升基础代谢，每次20分钟，持续12周",
+          "notes": "针对核心、下肢等大肌群，提升基础代谢，每次30分钟",
           "priority": 2,
-          "estMinutes": 20,
+          "estMinutes": 30,
           "durationDays": 88,
           "startDate": "2026-09-12",
           "dueDate": "2026-12-08",
           "dependsOn": [
-            "制定减重计划与饮食方案"
+            "制定减重计划与基线评估"
           ]
         },
         {
-          "title": "每日饮食记录与热量监控",
-          "notes": "使用APP记录每餐，确保每日热量缺口在500-700千卡，持续12周",
+          "title": "每日记录饮食并控制热量缺口",
+          "notes": "使用APP记录，每日摄入比消耗少500千卡，保证蛋白质摄入",
           "priority": 1,
           "estMinutes": 15,
           "durationDays": 88,
           "startDate": "2026-09-12",
           "dueDate": "2026-12-08",
           "dependsOn": [
-            "制定减重计划与饮食方案"
+            "制定减重计划与基线评估"
           ]
         },
         {
-          "title": "每周体重测量与进度评估",
-          "notes": "每周固定时间称重，记录变化，根据进度调整饮食和运动计划",
+          "title": "每周体重测量与进度复盘",
+          "notes": "每周日早晨空腹称重，记录变化，调整饮食和运动计划",
           "priority": 2,
           "estMinutes": 30,
-          "durationDays": 86,
-          "startDate": "2026-09-14",
-          "dueDate": "2026-12-08",
+          "startDate": "2026-09-13",
+          "dueDate": "2026-12-06",
           "dependsOn": [
-            "每周4次有氧运动训练",
-            "每周2次力量训练",
-            "每日饮食记录与热量监控"
+            "制定减重计划与基线评估"
           ]
         },
         {
-          "title": "最终成果总结与维持策略",
-          "notes": "评估减重成果，制定长期维持方案，防止反弹",
+          "title": "最终评估与成果总结",
+          "notes": "测量最终体重，对比目标，总结有效方法，制定维持计划",
           "priority": 3,
           "estMinutes": 60,
-          "startDate": "2026-12-06",
+          "startDate": "2026-12-07",
           "dueDate": "2026-12-08",
           "dependsOn": [
-            "每周体重测量与进度评估"
+            "每周体重测量与进度复盘"
           ]
         }
       ],
@@ -196,32 +187,32 @@
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 104,
+      "minutesPerDay": 90,
       "overload": false,
       "datesCoverage": 1,
-      "periodicCount": 4,
+      "periodicCount": 3,
       "datesInRange": true,
       "depsValid": true,
       "rawDatesInRange": true
     },
     {
       "goal": "两周内上线个人博客网站",
-      "deadline": "2026-09-23T00:34:14.538Z",
+      "deadline": "2026-09-23T01:25:39.780Z",
       "daysLeft": 14,
       "ok": true,
-      "latencyMs": 4542,
+      "latencyMs": 4861,
       "tasks": [
         {
           "title": "规划博客内容与结构",
-          "notes": "确定博客主题、页面结构（首页、文章列表、关于页等）和示例文章",
+          "notes": "确定博客主题、栏目和示例文章，绘制站点地图",
           "priority": 1,
           "estMinutes": 120,
           "startDate": "2026-09-09",
           "dueDate": "2026-09-10"
         },
         {
-          "title": "搭建Next.js项目并配置基础",
-          "notes": "初始化项目，配置TypeScript、Tailwind CSS等基础工具",
+          "title": "搭建 Next.js 项目并配置基础框架",
+          "notes": "初始化项目，配置 Tailwind CSS、路由和布局",
           "priority": 1,
           "estMinutes": 180,
           "startDate": "2026-09-10",
@@ -231,70 +222,70 @@
           ]
         },
         {
-          "title": "开发博客核心页面",
-          "notes": "实现首页、文章列表页、文章详情页和关于页",
-          "priority": 1,
-          "estMinutes": 480,
+          "title": "实现博客文章列表与详情页",
+          "notes": "使用本地 Markdown 文件或 CMS 实现文章展示",
+          "priority": 2,
+          "estMinutes": 240,
           "startDate": "2026-09-11",
+          "dueDate": "2026-09-13",
+          "dependsOn": [
+            "搭建 Next.js 项目并配置基础框架"
+          ]
+        },
+        {
+          "title": "添加导航、页脚和响应式设计",
+          "notes": "完善页面布局，确保移动端适配",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-14",
+          "dependsOn": [
+            "实现博客文章列表与详情页"
+          ]
+        },
+        {
+          "title": "配置域名与 Vercel 部署",
+          "notes": "连接 GitHub 仓库，配置自定义域名和 HTTPS",
+          "priority": 1,
+          "estMinutes": 90,
+          "startDate": "2026-09-14",
           "dueDate": "2026-09-15",
           "dependsOn": [
-            "搭建Next.js项目并配置基础"
+            "添加导航、页脚和响应式设计"
           ]
         },
         {
-          "title": "编写示例文章",
-          "notes": "准备至少3篇示例文章，用于测试页面展示",
-          "priority": 2,
+          "title": "撰写并导入至少 3 篇示例文章",
+          "notes": "填充内容，测试文章渲染和 SEO",
+          "priority": 3,
           "estMinutes": 180,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-09-16",
-          "dependsOn": [
-            "规划博客内容与结构"
-          ]
-        },
-        {
-          "title": "配置域名与DNS",
-          "notes": "在域名提供商处设置DNS记录，指向Vercel",
-          "priority": 1,
-          "estMinutes": 60,
-          "startDate": "2026-09-16",
+          "startDate": "2026-09-15",
           "dueDate": "2026-09-17",
           "dependsOn": [
-            "开发博客核心页面"
+            "实现博客文章列表与详情页"
           ]
         },
         {
-          "title": "部署到Vercel并配置自定义域名",
-          "notes": "将项目推送到GitHub并导入Vercel，配置自定义域名和HTTPS",
-          "priority": 1,
+          "title": "进行跨浏览器与性能测试",
+          "notes": "检查页面加载速度、兼容性和可访问性",
+          "priority": 2,
           "estMinutes": 120,
           "startDate": "2026-09-17",
           "dueDate": "2026-09-18",
           "dependsOn": [
-            "配置域名与DNS"
+            "配置域名与 Vercel 部署",
+            "撰写并导入至少 3 篇示例文章"
           ]
         },
         {
-          "title": "测试与优化",
-          "notes": "检查页面响应式、性能、SEO，修复问题",
-          "priority": 2,
-          "estMinutes": 240,
-          "startDate": "2026-09-18",
-          "dueDate": "2026-09-21",
-          "dependsOn": [
-            "部署到Vercel并配置自定义域名",
-            "编写示例文章"
-          ]
-        },
-        {
-          "title": "上线发布",
-          "notes": "最终检查，确保一切正常，正式对外发布",
+          "title": "最终上线与验收",
+          "notes": "确认域名解析、SSL 证书，发布上线并检查所有功能",
           "priority": 1,
           "estMinutes": 60,
-          "startDate": "2026-09-22",
-          "dueDate": "2026-09-23",
+          "startDate": "2026-09-18",
+          "dueDate": "2026-09-19",
           "dependsOn": [
-            "测试与优化"
+            "进行跨浏览器与性能测试"
           ]
         }
       ],
@@ -303,7 +294,7 @@
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 103,
+      "minutesPerDay": 79,
       "overload": false,
       "datesCoverage": 1,
       "periodicCount": 0,
@@ -313,146 +304,170 @@
     },
     {
       "goal": "准备数据分析师岗位面试并拿到 offer",
-      "deadline": "2026-10-24T00:34:19.080Z",
+      "deadline": "2026-10-24T01:25:44.642Z",
       "daysLeft": 45,
       "ok": true,
-      "latencyMs": 4736,
+      "latencyMs": 4791,
       "tasks": [
         {
-          "title": "梳理岗位要求与自身差距",
-          "notes": "分析目标岗位的职责与技能要求，对照自身情况列出差距清单",
+          "title": "完成简历优化与项目梳理",
+          "notes": "整理数据分析相关项目经历，量化成果，优化简历关键词以匹配岗位要求",
           "priority": 1,
-          "estMinutes": 120,
+          "estMinutes": 300,
           "startDate": "2026-09-09",
-          "dueDate": "2026-09-11"
+          "dueDate": "2026-09-12"
         },
         {
           "title": "系统复习数据分析核心知识",
-          "notes": "包括统计学、SQL、Python、数据可视化等核心技能，每天投入2小时",
+          "notes": "包括统计学、SQL、Python（pandas/numpy）、数据可视化等",
           "priority": 1,
           "estMinutes": 120,
-          "durationDays": 29,
-          "startDate": "2026-09-12",
+          "durationDays": 8,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-20",
+          "dependsOn": [
+            "完成简历优化与项目梳理"
+          ]
+        },
+        {
+          "title": "刷题练习SQL和Python",
+          "notes": "每天刷LeetCode或牛客网题目，巩固编程能力",
+          "priority": 1,
+          "estMinutes": 60,
+          "durationDays": 28,
+          "startDate": "2026-09-13",
           "dueDate": "2026-10-10",
           "dependsOn": [
-            "梳理岗位要求与自身差距"
+            "完成简历优化与项目梳理"
           ]
         },
         {
-          "title": "完成3个实战项目并整理作品集",
-          "notes": "选择与岗位相关的项目，每个项目约需2天，完成后整理成作品集",
-          "priority": 1,
-          "estMinutes": 480,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-09-25",
-          "dependsOn": [
-            "梳理岗位要求与自身差距"
-          ]
-        },
-        {
-          "title": "优化简历并准备面试材料",
-          "notes": "根据岗位要求修改简历，准备自我介绍、项目介绍等常见问题回答",
+          "title": "准备行为面试与自我介绍",
+          "notes": "整理常见行为问题，准备STAR法则回答，打磨自我介绍",
           "priority": 2,
           "estMinutes": 180,
-          "startDate": "2026-09-26",
-          "dueDate": "2026-09-30",
+          "startDate": "2026-09-21",
+          "dueDate": "2026-09-24",
           "dependsOn": [
-            "完成3个实战项目并整理作品集"
+            "系统复习数据分析核心知识"
           ]
         },
         {
-          "title": "进行模拟面试练习",
-          "notes": "至少进行3次模拟面试，每次约1小时，可找朋友或使用在线平台",
+          "title": "模拟面试与反馈",
+          "notes": "进行至少3次模拟面试，邀请朋友或导师反馈，改进表达",
           "priority": 2,
-          "estMinutes": 60,
-          "durationDays": 15,
-          "startDate": "2026-10-01",
-          "dueDate": "2026-10-15",
+          "estMinutes": 120,
+          "durationDays": 11,
+          "startDate": "2026-09-25",
+          "dueDate": "2026-10-05",
           "dependsOn": [
-            "优化简历并准备面试材料"
+            "准备行为面试与自我介绍"
           ]
         },
         {
           "title": "投递简历并跟进申请",
-          "notes": "每天投递一定数量的岗位，并记录跟进状态",
+          "notes": "每天投递目标公司，记录申请状态，跟进回复",
           "priority": 1,
           "estMinutes": 60,
-          "durationDays": 20,
-          "startDate": "2026-10-01",
-          "dueDate": "2026-10-20",
+          "durationDays": 33,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-10-15",
           "dependsOn": [
-            "优化简历并准备面试材料"
+            "完成简历优化与项目梳理"
           ]
         },
         {
-          "title": "参加面试并复盘改进",
-          "notes": "根据面试安排参加面试，每次面试后复盘总结，持续改进",
-          "priority": 1,
+          "title": "面试复盘与最终准备",
+          "notes": "根据模拟面试和实际面试反馈，查漏补缺，调整策略",
+          "priority": 2,
           "estMinutes": 120,
-          "startDate": "2026-10-10",
+          "durationDays": 15,
+          "startDate": "2026-10-06",
+          "dueDate": "2026-10-20",
+          "dependsOn": [
+            "模拟面试与反馈"
+          ]
+        },
+        {
+          "title": "接受offer并完成入职准备",
+          "notes": "评估offer，完成入职手续，准备入职材料",
+          "priority": 3,
+          "estMinutes": 180,
+          "startDate": "2026-10-21",
           "dueDate": "2026-10-24",
           "dependsOn": [
-            "投递简历并跟进申请",
-            "进行模拟面试练习"
+            "面试复盘与最终准备"
           ]
         }
       ],
-      "taskCount": 7,
+      "taskCount": 8,
       "duplicateTitles": [],
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 144,
+      "minutesPerDay": 187,
       "overload": false,
       "datesCoverage": 1,
-      "periodicCount": 3,
+      "periodicCount": 5,
       "datesInRange": true,
       "depsValid": true,
       "rawDatesInRange": true
     },
     {
       "goal": "一年内存下 5 万元",
-      "deadline": "2027-09-09T00:34:23.817Z",
+      "deadline": "2027-09-09T01:25:49.433Z",
       "daysLeft": 365,
       "ok": true,
-      "latencyMs": 4319,
+      "latencyMs": 4063,
       "tasks": [
         {
           "title": "制定储蓄计划与预算",
-          "notes": "分析月收入支出，设定每月储蓄目标约4167元，制定详细预算表",
+          "notes": "分析月收入1.5万，设定每月储蓄目标约4167元，制定详细预算表",
           "priority": 1,
           "estMinutes": 120,
           "startDate": "2026-09-09",
-          "dueDate": "2026-09-16"
+          "dueDate": "2026-09-15"
         },
         {
-          "title": "开设专用储蓄账户并设置自动转账",
-          "notes": "开立高利率储蓄账户，设置每月发薪日自动转账4167元",
-          "priority": 1,
-          "estMinutes": 60,
-          "startDate": "2026-09-10",
-          "dueDate": "2026-09-17",
+          "title": "开设高收益储蓄账户",
+          "notes": "比较银行或货币基金，选择利率较高的储蓄账户并开户",
+          "priority": 2,
+          "estMinutes": 90,
+          "startDate": "2026-09-16",
+          "dueDate": "2026-09-22",
           "dependsOn": [
             "制定储蓄计划与预算"
           ]
         },
         {
-          "title": "每月记账与预算审查",
-          "notes": "每月末记录当月收支，对比预算，调整下月计划",
+          "title": "每月自动转账储蓄",
+          "notes": "设置每月发薪日自动转账4167元至储蓄账户，形成习惯",
+          "priority": 1,
+          "estMinutes": 30,
+          "durationDays": 352,
+          "startDate": "2026-09-23",
+          "dueDate": "2027-09-09",
+          "dependsOn": [
+            "开设高收益储蓄账户"
+          ]
+        },
+        {
+          "title": "每月复盘支出与调整",
+          "notes": "每月末检查预算执行情况，调整非必要支出，确保储蓄目标达成",
           "priority": 2,
           "estMinutes": 60,
-          "durationDays": 12,
+          "durationDays": 345,
           "startDate": "2026-09-30",
-          "dueDate": "2026-10-11",
+          "dueDate": "2027-09-09",
           "dependsOn": [
-            "制定储蓄计划与预算"
+            "每月自动转账储蓄"
           ]
         },
         {
           "title": "削减非必要开支",
-          "notes": "识别并减少外出就餐、娱乐等非必要消费，每月节省至少1000元",
+          "notes": "识别并减少外卖、娱乐等非必要消费，每月至少节省500元",
           "priority": 2,
-          "estMinutes": 90,
+          "estMinutes": 45,
           "startDate": "2026-09-16",
           "dueDate": "2026-09-30",
           "dependsOn": [
@@ -460,37 +475,26 @@
           ]
         },
         {
-          "title": "寻找额外收入来源",
-          "notes": "探索兼职、自由职业或投资等途径，每月增加至少2000元收入",
-          "priority": 2,
-          "estMinutes": 180,
-          "startDate": "2026-09-16",
-          "dueDate": "2026-10-15",
+          "title": "增加副业收入",
+          "notes": "利用周末或业余时间开展副业，如自由职业、兼职，每月额外增收至少1000元",
+          "priority": 3,
+          "estMinutes": 300,
+          "startDate": "2026-09-23",
+          "dueDate": "2026-10-07",
           "dependsOn": [
             "制定储蓄计划与预算"
           ]
         },
         {
-          "title": "每月储蓄目标达成检查",
-          "notes": "每月检查储蓄账户余额，确保达到4167元目标，必要时调整",
-          "priority": 1,
-          "estMinutes": 30,
-          "durationDays": 12,
-          "startDate": "2026-10-01",
-          "dueDate": "2026-10-12",
-          "dependsOn": [
-            "开设专用储蓄账户并设置自动转账"
-          ]
-        },
-        {
-          "title": "年度储蓄总结与目标达成",
-          "notes": "核对总储蓄额达到5万元，总结并庆祝",
+          "title": "年度储蓄目标验收",
+          "notes": "核对总储蓄是否达到5万元，总结并庆祝成果",
           "priority": 1,
           "estMinutes": 60,
           "startDate": "2027-09-01",
           "dueDate": "2027-09-09",
           "dependsOn": [
-            "每月储蓄目标达成检查"
+            "每月复盘支出与调整",
+            "每月自动转账储蓄"
           ]
         }
       ],
@@ -499,7 +503,7 @@
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 4,
+      "minutesPerDay": 87,
       "overload": false,
       "datesCoverage": 1,
       "periodicCount": 2,
@@ -509,273 +513,83 @@
     },
     {
       "goal": "一个月内完成一部 3 万字中篇小说初稿",
-      "deadline": "2026-10-09T00:34:28.137Z",
+      "deadline": "2026-10-09T01:25:53.497Z",
       "daysLeft": 30,
       "ok": true,
-      "latencyMs": 3784,
+      "latencyMs": 4458,
       "tasks": [
         {
-          "title": "制定小说大纲与人物设定",
-          "notes": "完成故事主线、分章节概要、主要人物背景与关系设定",
+          "title": "制定小说大纲与章节规划",
+          "notes": "确定故事主线、人物设定、章节结构，为后续写作提供蓝图",
           "priority": 1,
           "estMinutes": 300,
           "startDate": "2026-09-09",
-          "dueDate": "2026-09-12"
+          "dueDate": "2026-09-11"
         },
         {
-          "title": "每日写作训练（1000字）",
-          "notes": "培养写作习惯，积累素材，提升速度",
-          "priority": 2,
-          "estMinutes": 60,
-          "durationDays": 29,
-          "startDate": "2026-09-10",
-          "dueDate": "2026-10-08"
-        },
-        {
-          "title": "完成前1万字初稿",
-          "notes": "根据大纲完成前1万字，约占总篇幅1/3",
+          "title": "撰写第1-5章（约5000字）",
+          "notes": "完成小说开头部分，引入主要人物和冲突",
           "priority": 1,
           "estMinutes": 600,
-          "startDate": "2026-09-13",
-          "dueDate": "2026-09-20",
+          "startDate": "2026-09-12",
+          "dueDate": "2026-09-16",
           "dependsOn": [
-            "制定小说大纲与人物设定"
+            "制定小说大纲与章节规划"
           ]
         },
         {
-          "title": "完成中1万字初稿",
-          "notes": "继续推进故事，完成中间1万字",
+          "title": "撰写第6-10章（约5000字）",
+          "notes": "推进剧情发展，深化人物关系",
           "priority": 1,
           "estMinutes": 600,
-          "startDate": "2026-09-21",
-          "dueDate": "2026-09-28",
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-21",
           "dependsOn": [
-            "完成前1万字初稿"
+            "撰写第1-5章（约5000字）"
           ]
         },
         {
-          "title": "完成后1万字初稿",
-          "notes": "完成最后1万字，确保故事完整",
+          "title": "撰写第11-15章（约5000字）",
+          "notes": "进入故事中段，设置关键转折点",
           "priority": 1,
           "estMinutes": 600,
-          "startDate": "2026-09-29",
+          "startDate": "2026-09-22",
+          "dueDate": "2026-09-26",
+          "dependsOn": [
+            "撰写第6-10章（约5000字）"
+          ]
+        },
+        {
+          "title": "撰写第16-20章（约5000字）",
+          "notes": "推向高潮，解决主要矛盾",
+          "priority": 1,
+          "estMinutes": 600,
+          "startDate": "2026-09-27",
+          "dueDate": "2026-10-01",
+          "dependsOn": [
+            "撰写第11-15章（约5000字）"
+          ]
+        },
+        {
+          "title": "撰写第21-25章（约5000字）",
+          "notes": "收尾部分，完成故事结局",
+          "priority": 1,
+          "estMinutes": 600,
+          "startDate": "2026-10-02",
           "dueDate": "2026-10-06",
           "dependsOn": [
-            "完成中1万字初稿"
+            "撰写第16-20章（约5000字）"
           ]
         },
         {
-          "title": "整体修订与润色",
-          "notes": "检查情节连贯性、人物一致性，修正错别字和语病",
+          "title": "初稿整体修改与润色",
+          "notes": "检查情节连贯性、人物一致性，修正错别字和语法问题",
           "priority": 2,
           "estMinutes": 300,
           "startDate": "2026-10-07",
           "dueDate": "2026-10-09",
           "dependsOn": [
-            "完成后1万字初稿"
-          ]
-        }
-      ],
-      "taskCount": 6,
-      "duplicateTitles": [],
-      "priorityRangeOk": true,
-      "hasHighPriority": true,
-      "estRangeOk": true,
-      "minutesPerDay": 138,
-      "overload": false,
-      "datesCoverage": 1,
-      "periodicCount": 1,
-      "datesInRange": true,
-      "depsValid": true,
-      "rawDatesInRange": true
-    },
-    {
-      "goal": "两周内完成跨城搬家并安顿好新家",
-      "deadline": "2026-09-23T00:34:31.921Z",
-      "daysLeft": 14,
-      "ok": true,
-      "latencyMs": 4792,
-      "tasks": [
-        {
-          "title": "制定搬家计划与预算",
-          "notes": "列出所有待办事项，估算搬家费用，确定时间表",
-          "priority": 1,
-          "estMinutes": 120,
-          "startDate": "2026-09-09",
-          "dueDate": "2026-09-10"
-        },
-        {
-          "title": "联系搬家公司并预约服务",
-          "notes": "比较多家搬家公司，选择可靠服务，预约搬家日期",
-          "priority": 1,
-          "estMinutes": 90,
-          "startDate": "2026-09-10",
-          "dueDate": "2026-09-11",
-          "dependsOn": [
-            "制定搬家计划与预算"
-          ]
-        },
-        {
-          "title": "整理打包个人物品",
-          "notes": "分类打包衣物、书籍、厨房用品等，标记箱子",
-          "priority": 1,
-          "estMinutes": 300,
-          "startDate": "2026-09-11",
-          "dueDate": "2026-09-15",
-          "dependsOn": [
-            "联系搬家公司并预约服务"
-          ]
-        },
-        {
-          "title": "办理地址变更手续",
-          "notes": "更新银行、快递、工作单位等地址信息",
-          "priority": 2,
-          "estMinutes": 60,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-09-16",
-          "dependsOn": [
-            "制定搬家计划与预算"
-          ]
-        },
-        {
-          "title": "执行搬家日搬运",
-          "notes": "监督搬运过程，确保物品安全到达新家",
-          "priority": 1,
-          "estMinutes": 480,
-          "startDate": "2026-09-17",
-          "dueDate": "2026-09-17",
-          "dependsOn": [
-            "整理打包个人物品",
-            "办理地址变更手续"
-          ]
-        },
-        {
-          "title": "新家清洁与布置",
-          "notes": "彻底清洁新家，布置家具和装饰",
-          "priority": 2,
-          "estMinutes": 240,
-          "startDate": "2026-09-18",
-          "dueDate": "2026-09-20",
-          "dependsOn": [
-            "执行搬家日搬运"
-          ]
-        },
-        {
-          "title": "开通新家水电网络",
-          "notes": "联系水电公司、网络服务商，确保基本设施可用",
-          "priority": 1,
-          "estMinutes": 120,
-          "startDate": "2026-09-18",
-          "dueDate": "2026-09-19",
-          "dependsOn": [
-            "执行搬家日搬运"
-          ]
-        },
-        {
-          "title": "整理收纳并适应新环境",
-          "notes": "拆箱整理物品，熟悉周边设施，建立新生活节奏",
-          "priority": 3,
-          "estMinutes": 180,
-          "startDate": "2026-09-20",
-          "dueDate": "2026-09-23",
-          "dependsOn": [
-            "新家清洁与布置",
-            "开通新家水电网络"
-          ]
-        }
-      ],
-      "taskCount": 8,
-      "duplicateTitles": [],
-      "priorityRangeOk": true,
-      "hasHighPriority": true,
-      "estRangeOk": true,
-      "minutesPerDay": 114,
-      "overload": false,
-      "datesCoverage": 1,
-      "periodicCount": 0,
-      "datesInRange": true,
-      "depsValid": true,
-      "rawDatesInRange": true
-    },
-    {
-      "goal": "为团队 10 人项目的 GitHub 仓库搭建 CI/CD 流水线",
-      "deadline": "2026-09-30T00:34:36.713Z",
-      "daysLeft": 21,
-      "ok": true,
-      "latencyMs": 4124,
-      "tasks": [
-        {
-          "title": "确定 CI/CD 需求与工具选型",
-          "notes": "与团队讨论并确定 CI/CD 流程需求，选择工具（如 GitHub Actions、Jenkins 等）",
-          "priority": 1,
-          "estMinutes": 120,
-          "startDate": "2026-09-09",
-          "dueDate": "2026-09-11"
-        },
-        {
-          "title": "配置 GitHub 仓库基础设置",
-          "notes": "设置分支保护、Webhook、环境变量等基础配置",
-          "priority": 1,
-          "estMinutes": 90,
-          "startDate": "2026-09-11",
-          "dueDate": "2026-09-13",
-          "dependsOn": [
-            "确定 CI/CD 需求与工具选型"
-          ]
-        },
-        {
-          "title": "编写 CI 流水线配置",
-          "notes": "实现代码检查、单元测试、构建等 CI 步骤",
-          "priority": 1,
-          "estMinutes": 240,
-          "startDate": "2026-09-13",
-          "dueDate": "2026-09-17",
-          "dependsOn": [
-            "配置 GitHub 仓库基础设置"
-          ]
-        },
-        {
-          "title": "编写 CD 流水线配置",
-          "notes": "实现自动部署到测试/生产环境的 CD 步骤",
-          "priority": 1,
-          "estMinutes": 240,
-          "startDate": "2026-09-17",
-          "dueDate": "2026-09-21",
-          "dependsOn": [
-            "编写 CI 流水线配置"
-          ]
-        },
-        {
-          "title": "集成测试与调试流水线",
-          "notes": "运行完整流水线，修复问题，确保稳定性",
-          "priority": 2,
-          "estMinutes": 180,
-          "startDate": "2026-09-21",
-          "dueDate": "2026-09-24",
-          "dependsOn": [
-            "编写 CD 流水线配置"
-          ]
-        },
-        {
-          "title": "编写流水线文档与团队培训",
-          "notes": "撰写使用文档，并组织团队进行简短培训",
-          "priority": 2,
-          "estMinutes": 120,
-          "startDate": "2026-09-24",
-          "dueDate": "2026-09-27",
-          "dependsOn": [
-            "集成测试与调试流水线"
-          ]
-        },
-        {
-          "title": "最终验收与上线",
-          "notes": "确认所有功能正常，正式启用流水线",
-          "priority": 1,
-          "estMinutes": 60,
-          "startDate": "2026-09-28",
-          "dueDate": "2026-09-30",
-          "dependsOn": [
-            "编写流水线文档与团队培训"
+            "撰写第21-25章（约5000字）"
           ]
         }
       ],
@@ -784,7 +598,221 @@
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 50,
+      "minutesPerDay": 120,
+      "overload": false,
+      "datesCoverage": 1,
+      "periodicCount": 0,
+      "datesInRange": true,
+      "depsValid": true,
+      "rawDatesInRange": true
+    },
+    {
+      "goal": "两周内完成跨城搬家并安顿好新家",
+      "deadline": "2026-09-23T01:25:57.955Z",
+      "daysLeft": 14,
+      "ok": true,
+      "latencyMs": 5110,
+      "tasks": [
+        {
+          "title": "制定搬家计划与物品清单",
+          "notes": "列出所有物品，确定搬运方式，预约搬家公司或车辆",
+          "priority": 1,
+          "estMinutes": 120,
+          "startDate": "2026-09-09",
+          "dueDate": "2026-09-10"
+        },
+        {
+          "title": "处理旧居退租与水电燃气结算",
+          "notes": "联系房东退租，办理水电燃气过户或结清",
+          "priority": 1,
+          "estMinutes": 90,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-12",
+          "dependsOn": [
+            "制定搬家计划与物品清单"
+          ]
+        },
+        {
+          "title": "打包所有物品并标记",
+          "notes": "按房间分类打包，易碎品标注，重要文件随身携带",
+          "priority": 1,
+          "estMinutes": 300,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-15",
+          "dependsOn": [
+            "制定搬家计划与物品清单"
+          ]
+        },
+        {
+          "title": "办理新居入住手续与开通服务",
+          "notes": "签订新租约，开通网络、水电、燃气等",
+          "priority": 1,
+          "estMinutes": 120,
+          "startDate": "2026-09-14",
+          "dueDate": "2026-09-16",
+          "dependsOn": [
+            "处理旧居退租与水电燃气结算"
+          ]
+        },
+        {
+          "title": "执行跨城搬家运输",
+          "notes": "联系搬家公司，确保物品安全运输",
+          "priority": 1,
+          "estMinutes": 480,
+          "startDate": "2026-09-16",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "打包所有物品并标记",
+            "办理新居入住手续与开通服务"
+          ]
+        },
+        {
+          "title": "新家开箱整理与布置",
+          "notes": "拆箱归位，清洁，采购必要家具家电",
+          "priority": 2,
+          "estMinutes": 300,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-20",
+          "dependsOn": [
+            "执行跨城搬家运输"
+          ]
+        },
+        {
+          "title": "地址变更与生活安顿",
+          "notes": "更新银行、快递、工作等地址，熟悉周边环境",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-20",
+          "dueDate": "2026-09-22",
+          "dependsOn": [
+            "新家开箱整理与布置"
+          ]
+        },
+        {
+          "title": "每日整理与适应新家",
+          "notes": "每天花时间整理细节，适应新环境",
+          "priority": 3,
+          "estMinutes": 30,
+          "durationDays": 6,
+          "startDate": "2026-09-18",
+          "dueDate": "2026-09-23",
+          "dependsOn": [
+            "执行跨城搬家运输"
+          ]
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 122,
+      "overload": false,
+      "datesCoverage": 1,
+      "periodicCount": 1,
+      "datesInRange": true,
+      "depsValid": true,
+      "rawDatesInRange": true
+    },
+    {
+      "goal": "为团队 10 人项目的 GitHub 仓库搭建 CI/CD 流水线",
+      "deadline": "2026-09-30T01:26:03.065Z",
+      "daysLeft": 21,
+      "ok": true,
+      "latencyMs": 5501,
+      "tasks": [
+        {
+          "title": "评估项目需求与现有仓库状态",
+          "notes": "了解项目技术栈、构建工具、测试框架及当前仓库结构，确定CI/CD需求。",
+          "priority": 1,
+          "estMinutes": 120,
+          "startDate": "2026-09-09",
+          "dueDate": "2026-09-11"
+        },
+        {
+          "title": "设计CI/CD流水线架构",
+          "notes": "基于评估结果，设计流水线阶段（构建、测试、部署等），选择工具（如GitHub Actions）。",
+          "priority": 1,
+          "estMinutes": 90,
+          "startDate": "2026-09-12",
+          "dueDate": "2026-09-13",
+          "dependsOn": [
+            "评估项目需求与现有仓库状态"
+          ]
+        },
+        {
+          "title": "配置基础CI流水线（构建与单元测试）",
+          "notes": "编写工作流文件，实现代码推送时自动构建和运行单元测试。",
+          "priority": 1,
+          "estMinutes": 180,
+          "startDate": "2026-09-14",
+          "dueDate": "2026-09-16",
+          "dependsOn": [
+            "设计CI/CD流水线架构"
+          ]
+        },
+        {
+          "title": "集成代码质量检查与安全扫描",
+          "notes": "添加lint、格式检查、依赖漏洞扫描等步骤，确保代码质量。",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-18",
+          "dependsOn": [
+            "配置基础CI流水线（构建与单元测试）"
+          ]
+        },
+        {
+          "title": "配置CD部署流水线（测试环境）",
+          "notes": "实现合并到主分支后自动部署到测试环境，并运行集成测试。",
+          "priority": 1,
+          "estMinutes": 180,
+          "startDate": "2026-09-19",
+          "dueDate": "2026-09-21",
+          "dependsOn": [
+            "集成代码质量检查与安全扫描"
+          ]
+        },
+        {
+          "title": "配置生产环境部署与回滚机制",
+          "notes": "设置手动审批的生产部署，并实现自动化回滚策略。",
+          "priority": 2,
+          "estMinutes": 150,
+          "startDate": "2026-09-22",
+          "dueDate": "2026-09-24",
+          "dependsOn": [
+            "配置CD部署流水线（测试环境）"
+          ]
+        },
+        {
+          "title": "编写流水线文档与团队培训",
+          "notes": "为团队成员编写使用说明，并安排一次培训会议。",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-25",
+          "dueDate": "2026-09-27",
+          "dependsOn": [
+            "配置生产环境部署与回滚机制"
+          ]
+        },
+        {
+          "title": "全面测试与最终验收",
+          "notes": "模拟完整流程，验证所有功能，确保流水线稳定可靠。",
+          "priority": 1,
+          "estMinutes": 180,
+          "startDate": "2026-09-28",
+          "dueDate": "2026-09-30",
+          "dependsOn": [
+            "编写流水线文档与团队培训"
+          ]
+        }
+      ],
+      "taskCount": 8,
+      "duplicateTitles": [],
+      "priorityRangeOk": true,
+      "hasHighPriority": true,
+      "estRangeOk": true,
+      "minutesPerDay": 54,
       "overload": false,
       "datesCoverage": 1,
       "periodicCount": 0,
@@ -794,90 +822,92 @@
     },
     {
       "goal": "100 天内雅思总分考到 6.5",
-      "deadline": "2026-12-18T00:34:40.838Z",
+      "deadline": "2026-12-18T01:26:08.567Z",
       "daysLeft": 100,
       "ok": true,
-      "latencyMs": 5726,
+      "latencyMs": 4653,
       "tasks": [
         {
-          "title": "完成雅思基础诊断与目标差距分析",
-          "notes": "通过一次完整模考和单项评估，明确当前各项分数与目标6.5的差距，制定个性化学习计划。",
-          "priority": 1,
-          "estMinutes": 180,
-          "startDate": "2026-09-09",
-          "dueDate": "2026-09-11"
-        },
-        {
-          "title": "每日听力精听训练",
-          "notes": "每天精听1小时，涵盖剑桥雅思真题及BBC材料，提升听力细节捕捉能力。",
-          "priority": 2,
-          "estMinutes": 60,
-          "durationDays": 97,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-12-17",
-          "dependsOn": [
-            "完成雅思基础诊断与目标差距分析"
-          ]
-        },
-        {
-          "title": "每日阅读限时练习与词汇积累",
-          "notes": "每天完成1篇阅读限时训练并整理生词，重点提升阅读速度和定位能力。",
-          "priority": 2,
-          "estMinutes": 60,
-          "durationDays": 97,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-12-17",
-          "dependsOn": [
-            "完成雅思基础诊断与目标差距分析"
-          ]
-        },
-        {
-          "title": "每日口语话题练习与录音复盘",
-          "notes": "每天针对当季题库练习2个话题，录音并自我纠错，重点改善流利度和发音。",
-          "priority": 1,
-          "estMinutes": 45,
-          "durationDays": 97,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-12-17",
-          "dependsOn": [
-            "完成雅思基础诊断与目标差距分析"
-          ]
-        },
-        {
-          "title": "每日写作小作文与大作文交替训练",
-          "notes": "每天完成一篇小作文或大作文，并参考范文修改，重点提升逻辑和词汇多样性。",
-          "priority": 1,
-          "estMinutes": 60,
-          "durationDays": 97,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-12-17",
-          "dependsOn": [
-            "完成雅思基础诊断与目标差距分析"
-          ]
-        },
-        {
-          "title": "每周一次全科模拟考试与复盘",
-          "notes": "每周六进行完整模考，周日分析错题和薄弱环节，调整下周学习重点。",
-          "priority": 1,
-          "estMinutes": 180,
-          "startDate": "2026-09-19",
-          "dueDate": "2026-12-17",
-          "dependsOn": [
-            "每日听力精听训练",
-            "每日阅读限时练习与词汇积累",
-            "每日口语话题练习与录音复盘",
-            "每日写作小作文与大作文交替训练"
-          ]
-        },
-        {
-          "title": "考前冲刺与策略调整",
-          "notes": "考前两周集中复习高频考点、错题本和口语写作模板，进行2次全真模拟，调整考试心态。",
+          "title": "完成雅思基础诊断与目标拆解",
+          "notes": "分析上次模考成绩，明确听说读写各项差距，制定100天学习计划",
           "priority": 1,
           "estMinutes": 120,
-          "startDate": "2026-12-05",
-          "dueDate": "2026-12-17",
+          "startDate": "2026-09-09",
+          "dueDate": "2026-09-10"
+        },
+        {
+          "title": "每日核心词汇与语法训练",
+          "notes": "每天背诵50个雅思高频词汇，并完成语法专项练习",
+          "priority": 1,
+          "estMinutes": 60,
+          "durationDays": 100,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-12-18",
           "dependsOn": [
-            "每周一次全科模拟考试与复盘"
+            "完成雅思基础诊断与目标拆解"
+          ]
+        },
+        {
+          "title": "听力精听与泛听训练",
+          "notes": "每天精听1篇剑桥雅思听力，泛听英语材料30分钟，提升听力反应速度",
+          "priority": 2,
+          "estMinutes": 60,
+          "durationDays": 100,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-12-18",
+          "dependsOn": [
+            "完成雅思基础诊断与目标拆解"
+          ]
+        },
+        {
+          "title": "口语话题库构建与每日开口练习",
+          "notes": "整理当季口语题库，每天练习2个Part1话题和1个Part2/3话题，录音自评",
+          "priority": 1,
+          "estMinutes": 45,
+          "durationDays": 100,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-12-18",
+          "dependsOn": [
+            "完成雅思基础诊断与目标拆解"
+          ]
+        },
+        {
+          "title": "写作模板学习与每周两篇大作文",
+          "notes": "学习高分范文结构，每周完成2篇大作文并找老师批改，重点提升逻辑和词汇",
+          "priority": 1,
+          "estMinutes": 90,
+          "durationDays": 100,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-12-18",
+          "dependsOn": [
+            "完成雅思基础诊断与目标拆解"
+          ]
+        },
+        {
+          "title": "每周一次全科模拟考试",
+          "notes": "每周六上午完整模拟一次雅思考试，检验学习效果并调整计划",
+          "priority": 2,
+          "estMinutes": 180,
+          "durationDays": 14,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-12-18",
+          "dependsOn": [
+            "每日核心词汇与语法训练",
+            "听力精听与泛听训练",
+            "口语话题库构建与每日开口练习",
+            "写作模板学习与每周两篇大作文"
+          ]
+        },
+        {
+          "title": "考前冲刺与薄弱项突破",
+          "notes": "最后两周针对口语和写作弱项进行高强度训练，复习错题和笔记，调整考试心态",
+          "priority": 1,
+          "estMinutes": 120,
+          "durationDays": 5,
+          "startDate": "2026-12-14",
+          "dueDate": "2026-12-18",
+          "dependsOn": [
+            "每周一次全科模拟考试"
           ]
         }
       ],
@@ -886,104 +916,115 @@
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 223,
+      "minutesPerDay": 287,
       "overload": false,
       "datesCoverage": 1,
-      "periodicCount": 4,
+      "periodicCount": 6,
       "datesInRange": true,
       "depsValid": true,
       "rawDatesInRange": true
     },
     {
       "goal": "一个月后组织一场 50 人参加的公司内部技术分享会",
-      "deadline": "2026-10-09T00:34:46.565Z",
+      "deadline": "2026-10-09T01:26:13.221Z",
       "daysLeft": 30,
       "ok": true,
-      "latencyMs": 3428,
+      "latencyMs": 5003,
       "tasks": [
         {
-          "title": "确定分享会主题与议程框架",
-          "notes": "明确技术方向、演讲者名单及议程草案",
+          "title": "确定分享会主题与议程",
+          "notes": "明确技术方向，拟定议程框架",
           "priority": 1,
           "estMinutes": 180,
           "startDate": "2026-09-09",
           "dueDate": "2026-09-12"
         },
         {
-          "title": "预订场地并确认设备支持",
-          "notes": "联系行政或外部场地，确保容纳50人及投影音响",
+          "title": "招募演讲嘉宾并确认演讲内容",
+          "notes": "邀请内部技术专家，收集演讲摘要",
           "priority": 1,
-          "estMinutes": 120,
-          "startDate": "2026-09-10",
-          "dueDate": "2026-09-14",
+          "estMinutes": 240,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-18",
           "dependsOn": [
-            "确定分享会主题与议程框架"
+            "确定分享会主题与议程"
           ]
         },
         {
-          "title": "邀请并确认演讲嘉宾",
-          "notes": "内部讲师沟通，收集演讲摘要，确认时间",
-          "priority": 1,
-          "estMinutes": 150,
-          "startDate": "2026-09-12",
-          "dueDate": "2026-09-18",
+          "title": "预订场地并安排设备",
+          "notes": "选择可容纳50人的会议室，确认投影、音响等",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-16",
           "dependsOn": [
-            "确定分享会主题与议程框架"
+            "确定分享会主题与议程"
           ]
         },
         {
           "title": "发布活动通知并收集报名",
-          "notes": "通过邮件/内部系统宣传，统计50人名单",
+          "notes": "通过邮件/内部系统宣传，统计参会人数",
           "priority": 2,
-          "estMinutes": 120,
-          "startDate": "2026-09-15",
-          "dueDate": "2026-09-25",
+          "estMinutes": 180,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-24",
           "dependsOn": [
-            "邀请并确认演讲嘉宾"
+            "招募演讲嘉宾并确认演讲内容",
+            "预订场地并安排设备"
           ]
         },
         {
           "title": "准备演讲材料与演示文稿",
-          "notes": "协助演讲者打磨PPT，统一模板，内部试讲",
+          "notes": "协助嘉宾打磨PPT，确保内容质量",
           "priority": 2,
           "estMinutes": 300,
-          "startDate": "2026-09-20",
-          "dueDate": "2026-10-02",
+          "startDate": "2026-09-19",
+          "dueDate": "2026-09-30",
           "dependsOn": [
-            "邀请并确认演讲嘉宾"
+            "招募演讲嘉宾并确认演讲内容"
           ]
         },
         {
-          "title": "安排现场流程与后勤支持",
-          "notes": "签到、茶歇、设备调试、志愿者分工",
-          "priority": 2,
+          "title": "彩排与流程预演",
+          "notes": "组织演讲者试讲，调整时间安排",
+          "priority": 1,
           "estMinutes": 180,
           "startDate": "2026-10-01",
-          "dueDate": "2026-10-08",
+          "dueDate": "2026-10-05",
           "dependsOn": [
-            "预订场地并确认设备支持",
+            "准备演讲材料与演示文稿"
+          ]
+        },
+        {
+          "title": "现场执行与后勤支持",
+          "notes": "负责签到、引导、设备控制、时间提醒等",
+          "priority": 1,
+          "estMinutes": 480,
+          "startDate": "2026-10-09",
+          "dueDate": "2026-10-09",
+          "dependsOn": [
+            "彩排与流程预演",
             "发布活动通知并收集报名"
           ]
         },
         {
-          "title": "执行分享会并收集反馈",
-          "notes": "当天主持、记录，会后发放问卷",
-          "priority": 1,
-          "estMinutes": 300,
+          "title": "会后反馈收集与总结",
+          "notes": "发放问卷，整理总结报告",
+          "priority": 3,
+          "estMinutes": 120,
           "startDate": "2026-10-09",
           "dueDate": "2026-10-09",
           "dependsOn": [
-            "准备演讲材料与演示文稿",
-            "安排现场流程与后勤支持"
+            "现场执行与后勤支持"
           ]
         }
       ],
-      "taskCount": 7,
+      "taskCount": 8,
       "duplicateTitles": [],
       "priorityRangeOk": true,
       "hasHighPriority": true,
       "estRangeOk": true,
-      "minutesPerDay": 45,
+      "minutesPerDay": 60,
       "overload": false,
       "datesCoverage": 1,
       "periodicCount": 0,
