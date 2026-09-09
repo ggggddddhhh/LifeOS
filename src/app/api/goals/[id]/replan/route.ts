@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { agentReplanGoal } from "@/lib/agent/client";
+import { agentReplanGoal, recentAgentCalls } from "@/lib/agent/client";
 import { computePlanDiff, enforceTaskBudget, enforceTimeBudget, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
 import { normalizeTitle } from "@/lib/llm/parse";
+import { traceEvent } from "@/lib/trace";
 import type { PlanDiff, TaskSnapshot } from "@/lib/types";
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const t0 = Date.now();
+  let goalId = "";
   try {
     const { id } = await ctx.params;
+    goalId = id;
     const goal = await prisma.goal.findUnique({
       where: { id },
       include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] } },
@@ -55,11 +59,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     // Phase 6 invariant breach 检测：Python 路径（带 finalize 观测块）已主动收敛，
     // TS 守卫仍修改其输出 = 语义漂移信号，必须显式记录，绝不静默。
+    let invariantBreach = false;
     if (result.finalize) {
       const trimmedByCount = afterCountGuard.length < result.tasks.length;
       const trimmedByTime = budget.note !== null;
       const trimmedByDone = finalTasks.length < afterCountGuard.length;
       if (trimmedByCount || trimmedByTime || trimmedByDone) {
+        invariantBreach = true;
         console.error(
           `[invariant-breach] TS 守卫修改了 Agent 已收敛的计划: count=${trimmedByCount} time=${trimmedByTime} done=${trimmedByDone}; ` +
             `python finalize=${JSON.stringify(result.finalize)}; tsNote=${budget.note ?? "无"}`,
@@ -127,11 +133,29 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       return goalUpdated;
     });
 
+    const lastCall = recentAgentCalls().at(-1);
+    traceEvent("replan", {
+      goalId,
+      ok: true,
+      planVersion: updated.revision,
+      openIn: openTasks.length,
+      tasksOut: finalTasks.length,
+      diff: { added: diff.added.length, removed: diff.removed.length, changed: diff.changed.length },
+      capacityMinutes: result.capacityMinutes ?? null,
+      finalizeAdjusted: result.finalize?.finalizeAdjusted ?? null,
+      invariantBreach,
+      agentProvider: lastCall?.provider ?? null,
+      agentFallbackReason: lastCall?.fallbackReason ?? null,
+      agentLatencyMs: lastCall?.latencyMs ?? null,
+      latencyMs: Date.now() - t0,
+    });
+
     return NextResponse.json({
       ok: true,
       data: { reason, diff, goal: updated, finalize: result.finalize ?? null },
     });
   } catch (e) {
+    traceEvent("replan", { goalId, ok: false, error: e instanceof Error ? e.message : "replan failed", latencyMs: Date.now() - t0 });
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Replan 失败" },
       { status: 500 },

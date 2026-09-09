@@ -21,8 +21,7 @@ function baseUrl(): string {
   return (process.env.AGENT_CORE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? 30_000);
+async function post<T>(path: string, body: unknown, timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? 30_000)): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -47,6 +46,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   }
 }
 
+/** Phase 9：批量写入是逐条 pre-check+insert+verify 的串行幂等协议，耗时随草稿数线性增长
+ * （实测 14 条 ≈ 37s）。超时预算必须覆盖最坏情况——超时本身不产生重复写入（幂等键双层防护），
+ * 但会让 TS 侧丢失结果与落库，制造"结果未知"恢复负担。 */
+const EXECUTE_TIMEOUT_MS = Number(process.env.AGENT_EXECUTE_TIMEOUT_MS ?? 180_000);
+
 /** Draft Builder：只读排期，永不写。 */
 export async function buildCalendarDrafts(req: {
   goalId: string;
@@ -66,5 +70,5 @@ export async function executeCalendarDrafts(req: {
   drafts: CalendarDraftItem[];
   tasks: { taskId: string; estMinutes: number }[];
 }): Promise<{ results: ExecuteResultItem[]; provider: string }> {
-  return post("/v1/calendar/execute", req);
+  return post("/v1/calendar/execute", req, EXECUTE_TIMEOUT_MS);
 }

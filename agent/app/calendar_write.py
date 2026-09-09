@@ -261,7 +261,12 @@ class IcsWriteProvider:
 
 def execute_drafts(req: ExecuteRequest, provider: CalendarWriteProvider) -> list[ExecuteResultItem]:
     results: list[ExecuteResultItem] = []
-    existing = provider.read_events()
+    try:
+        existing = provider.read_events()
+    except CalendarWriteError as e:
+        # Phase 9：读阶段失败（如 token 失效）也必须逐条结构化上报，绝不整批 500
+        return [ExecuteResultItem(idempotencyKey=d.idempotencyKey, status="failed", error=f"{e.code}: {e}")
+                for d in req.drafts]
     for d in req.drafts:
         try:
             validate_draft(d, {t["taskId"]: t for t in req.tasks})
@@ -274,20 +279,37 @@ def execute_drafts(req: ExecuteRequest, provider: CalendarWriteProvider) -> list
         ics_uid = make_uid(req.goalId, req.planVersion, d.taskId, int(d.idempotencyKey.split(":")[3]))
         # Google Provider 用草稿幂等键做外部防重复（privateExtendedProperty 查询语义）；
         # ICS 用 lifeos UID。两者都唯一且可回溯。
-        uid = d.idempotencyKey if hasattr(provider, "verify_event") else ics_uid
+        is_google = hasattr(provider, "verify_event")
+        uid = d.idempotencyKey if is_google else ics_uid
 
-        # 幂等：UID 已存在 → 跳过
-        if any(u == uid for u in [e["uid"] for e in existing]):
+        # 幂等身份判定（Phase 9 修复）：Google 事件 uid 是 Google eventId，与幂等键不同源——
+        # 必须按 private.idempotencyKey 匹配；ICS 事件 uid 即 lifeos UID。
+        def _is_self(e: dict) -> bool:
+            if is_google:
+                priv = e.get("private")
+                return isinstance(priv, dict) and priv.get("idempotencyKey") == d.idempotencyKey
+            return e["uid"] == ics_uid
+
+        # 幂等：同 key 既有事件 → 跳过（超时/重放恢复语义：收敛为 duplicate_skipped，
+        # 绝不把"自己的既有事件"误判为用户占用）
+        mine = [e for e in existing if _is_self(e)]
+        if mine:
+            m = mine[0]
+            verify = {"found": True, "unique": len(mine) == 1, "startOk": True, "endOk": True}
+            if m.get("startUtc") and m.get("endUtc"):
+                verify["startOk"] = datetime.fromisoformat(m["startUtc"].replace("Z", "+00:00")) == start
+                verify["endOk"] = datetime.fromisoformat(m["endUtc"].replace("Z", "+00:00")) == end
             results.append(ExecuteResultItem(
-                idempotencyKey=d.idempotencyKey, status="duplicate_skipped", externalEventId=uid,
-                verify={"found": True, "startOk": True, "endOk": True, "unique": True},
+                idempotencyKey=d.idempotencyKey, status="duplicate_skipped", externalEventId=m["uid"],
+                verify=verify,
+                error=None if all(verify.values()) else "CAL_CONFLICT: 同幂等键既有事件时间不一致",
             ))
             continue
 
         # 冲突复检（Instant 比较）：任何非自身事件重叠 → stale，不硬写
         conflict = any(
             (not e["allDay"]) and overlaps(start, end, datetime.fromisoformat(e["startUtc"].replace("Z", "+00:00")), datetime.fromisoformat(e["endUtc"].replace("Z", "+00:00")))
-            for e in existing if e["uid"] != uid
+            for e in existing if not _is_self(e)
         )
         if conflict:
             results.append(ExecuteResultItem(

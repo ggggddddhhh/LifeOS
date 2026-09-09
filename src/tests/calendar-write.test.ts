@@ -167,13 +167,48 @@ describe("Phase 7：确认制写入闭环", () => {
     });
     expect(res.status).toBe(502);
     expect(await prisma.calendarWrite.count()).toBe(0);
-    // python 恢复后可重试（drafts 已 confirmed；重试路径 = 重新生成草稿）
+    // python 恢复后：confirmed 草稿直接重试 confirm 即可（Phase 9 修复；也支持重新生成草稿）
     process.env.AGENT_CORE_URL = url;
-    await draftRoute(jsonReq(`/api/goals/${goal.id}/calendar/drafts`, "POST"), { params: Promise.resolve({ id: goal.id }) });
     const retry = await confirmRoute(jsonReq(`/api/goals/${goal.id}/calendar/confirm`, "POST"), {
       params: Promise.resolve({ id: goal.id }),
     });
     expect(retry.status).toBe(200);
+  });
+
+  it("Phase 9 超时恢复：agent 已写成功但 TS 超时未落库 → confirmed 草稿重试 confirm 收敛，provider 幂等防重", async () => {
+    const goal = await seedGoal();
+    await draftRoute(jsonReq(`/api/goals/${goal.id}/calendar/drafts`, "POST"), { params: Promise.resolve({ id: goal.id }) });
+    const first = await confirmRoute(jsonReq(`/api/goals/${goal.id}/calendar/confirm`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(first.status).toBe(200);
+    const uidsAfterFirst = [...state.writtenUids];
+    expect(uidsAfterFirst.length).toBeGreaterThan(0);
+
+    // 模拟真实超时现场（Phase 9 dogfood 实测形态）：agent 侧已全部写入（stub writtenUids 保留），
+    // 但 TS 侧超时——CalendarWrite 未落库、草稿停留 confirmed
+    await prisma.calendarWrite.deleteMany({ where: { goalId: goal.id } });
+    await prisma.calendarDraft.updateMany({
+      where: { goalId: goal.id, status: "executed" },
+      data: { status: "confirmed" },
+    });
+
+    const retry = await confirmRoute(jsonReq(`/api/goals/${goal.id}/calendar/confirm`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(retry.status).toBe(200);
+    const json = (await retry.json()) as { ok: boolean; data: { results: { status: string; externalEventId?: string }[]; summary: Record<string, number> } };
+    expect(json.ok).toBe(true);
+    // provider pre-check 命中既有事件：全部 duplicate/success，无第二套事件
+    expect(json.data.results.every((r) => r.status === "duplicate_skipped")).toBe(true);
+    expect(state.writtenUids.length).toBe(uidsAfterFirst.length); // 零新增写入
+    // 落库恢复：write 记录 + 草稿终态
+    expect(await prisma.calendarWrite.count({ where: { goalId: goal.id, status: "duplicate_skipped" } })).toBe(
+      uidsAfterFirst.length,
+    );
+    expect(await prisma.calendarDraft.count({ where: { goalId: goal.id, status: "duplicate_skipped" } })).toBe(
+      uidsAfterFirst.length,
+    );
   });
 
   it("部分失败 → 逐条状态如实，不假装整体成功", async () => {

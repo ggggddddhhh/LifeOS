@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildCalendarDrafts } from "@/lib/agent/calendar";
 import { DEFAULT_USER_TZ } from "@/lib/time";
+import { traceEvent } from "@/lib/trace";
 
 /** POST /api/goals/:id/calendar/drafts —— 生成日历草稿（pending_confirmation，永不写日历） */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const t0 = Date.now();
+  let goalId = "";
   try {
     const { id } = await ctx.params;
+    goalId = id;
     const goal = await prisma.goal.findUnique({
       where: { id },
       include: { tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] } },
@@ -19,7 +23,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     // 重新生成 = 旧提案作废：未触达日历的草稿（待确认/已确认未执行）直接删除，
     // 释放 idempotencyKey（unique）供重试使用；已执行/冲突等终态保留为历史。
-    await prisma.calendarDraft.deleteMany({
+    const cancelledStale = await prisma.calendarDraft.deleteMany({
       where: { goalId: id, status: { in: ["pending_confirmation", "confirmed"] } },
     });
     // 已成功写入本版本的任务不再重复排期（幂等：其 idempotencyKey 已占用且事件已在日历）
@@ -80,8 +84,15 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       where: { goalId: id, planVersion: goal.revision, status: "pending_confirmation" },
       orderBy: { proposedStart: "asc" },
     });
+    traceEvent("cal_drafts", {
+      goalId, ok: true, planVersion: goal.revision,
+      draftCount: drafts.length, cancelledStale: cancelledStale.count,
+      unplaced: built.unplacedTaskIds.length, executedSkipped: executedTaskIds.size,
+      latencyMs: Date.now() - t0,
+    });
     return NextResponse.json({ ok: true, data: { drafts, unplacedTaskIds: built.unplacedTaskIds } });
   } catch (e) {
+    traceEvent("cal_drafts", { goalId, ok: false, error: e instanceof Error ? e.message : "drafts failed", latencyMs: Date.now() - t0 });
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "生成日历草稿失败" },
       { status: 502 },

@@ -281,6 +281,23 @@ class TestCreate:
         results = execute_drafts(_req([_draft()]), provider)
         assert STATE.create_calls == 0  # pre-check 命中，insert 未被调用
         assert len([e for e in STATE.events if e["extendedProperties"]["private"]["app"] == "lifeos"]) == 1
+        # Phase 9 盲区修复：重放必须收敛为 duplicate_skipped（自己的既有事件≠用户占用，
+        # 不允许误报 stale_conflict）；externalEventId 是 Google eventId
+        assert results[0].status == "duplicate_skipped"
+        assert results[0].externalEventId == STATE.events[0]["id"]
+        assert results[0].verify and all(results[0].verify.values())
+
+    def test_timeout_recovery_full_batch_replay_converges(self, fake_server):
+        """Phase 9 真实形态：整批已写成功 + 重放 → 全部 duplicate_skipped，零新事件、零 stale。"""
+        provider, _ = fake_server
+        first = execute_drafts(_req([_draft(key="g1:1:t1:1"), _draft(key="g1:1:t1:2", start="2027-03-11T01:00:00Z", end="2027-03-11T02:00:00Z")]), provider)
+        assert all(r.status == "success" for r in first)
+        n = len(STATE.events)
+        STATE.create_calls = 0
+        second = execute_drafts(_req([_draft(key="g1:1:t1:1"), _draft(key="g1:1:t1:2", start="2027-03-11T01:00:00Z", end="2027-03-11T02:00:00Z")]), provider)
+        assert all(r.status == "duplicate_skipped" for r in second)
+        assert len(STATE.events) == n  # 零新增
+        assert STATE.create_calls == 0
 
     def test_create_timeout_server_actually_wrote(self, fake_server):
         """timeout 但服务端已成功 → 回查收敛，不产生第二个事件。"""
@@ -375,3 +392,24 @@ class TestRateLimit:
         STATE.fault["create"] = "429"
         with pytest.raises(CalendarWriteError):
             provider.create_event("k9", "LifeOS:X", datetime(2027, 3, 10, 1, tzinfo=UTC), datetime(2027, 3, 10, 2, tzinfo=UTC))
+
+
+class TestNoTokenExecute:
+    def test_execute_without_token_reports_per_item_failure(self, fake_server, monkeypatch, tmp_path):
+        """Phase 9：无 token（reauth_required）写路径逐条结构化失败，绝不整批 500。"""
+        import json as _json
+
+        provider, _ = fake_server
+        creds = tmp_path / "creds2.json"
+        creds.write_text(_json.dumps({"installed": {"client_id": "cid", "client_secret": "sec"}}), encoding="utf-8")
+        empty = tmp_path / "empty-token.json"
+        from app.google_calendar import GoogleOAuth
+        from app.token_store import FileTokenStore
+
+        bare = GoogleOAuth(str(creds), FileTokenStore(str(empty)),
+                           api_base="http://127.0.0.1:9", session_file=str(tmp_path / "s.json"))
+        p = GoogleCalendarProvider(bare, "primary", api_base="http://127.0.0.1:9",
+                                   http=httpx.Client(timeout=2, trust_env=False))
+        results = execute_drafts(_req([_draft()]), p)
+        assert len(results) == 1
+        assert results[0].status == "failed" and "reauth_required" in (results[0].error or "")

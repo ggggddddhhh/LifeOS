@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any, TypedDict
 
 from .errors import AGENT_PARSE_ERROR, AGENT_VALIDATION_ERROR, AgentError
@@ -13,6 +14,7 @@ from .calendar import CalendarClient, analyze_capacity
 from .github import GithubClient, analyze_progress, extract_repo
 from .llm import LLM
 from .prompts import CALENDAR_PAYLOAD_NOTE, GITHUB_PAYLOAD_NOTE, PLANNER_SYSTEM, REPLANNER_SYSTEM
+from .trace import trace
 
 MAX_ATTEMPTS = 2  # Validate 失败最多重试 1 次（首次 + 重试），禁止无限循环
 CAPACITY_PER_DAY = 480
@@ -86,12 +88,15 @@ def make_github_tool_node(github: GithubClient):
         repo = state.get("repo")
         if not repo:
             return {}  # 分支保证不会进入；防御性返回
+        t0 = time.perf_counter()
         try:
             facts = github.fetch_facts(repo["owner"], repo["name"])
         except Exception as e:  # noqa: BLE001 —— 工具失败绝不扩散为 graph 失败
             from .schemas import GithubFacts
 
             facts = GithubFacts(ok=False, error=f"{type(e).__name__}: {e}", fetched_at=_today())
+        trace("github_tool", ok=facts.ok, repo=f"{repo['owner']}/{repo['name']}",
+              open_issues=len(facts.open_issues or []), latency_ms=round((time.perf_counter() - t0) * 1000))
         return {"github": facts.model_dump(), "github_calls": state.get("github_calls", 0) + 1}
 
     return github_tool_node
@@ -119,6 +124,7 @@ def make_calendar_tool_node(calendar: CalendarClient | None):
         days_left = max(1, int(state.get("analysis", {}).get("daysLeft", 7)))
         facts = None
         if calendar is not None:
+            t0 = time.perf_counter()
             try:
                 import os
 
@@ -129,6 +135,10 @@ def make_calendar_tool_node(calendar: CalendarClient | None):
                 from .schemas import CalendarFacts
 
                 facts = CalendarFacts(ok=False, error=f"{type(e).__name__}: {e}", window_days=0)
+            trace("calendar_tool", ok=facts.ok, window_days=facts.window_days,
+                  events_seen=len(facts.events or []) if facts.ok else 0,
+                  error_code=(facts.error or "").split(":", 1)[0] if not facts.ok else None,
+                  latency_ms=round((time.perf_counter() - t0) * 1000))
         report = analyze_capacity(facts if facts is not None and facts.ok else None, days_left=days_left, declared=declared)
         return {
             **({"calendar": facts.model_dump()} if facts is not None else {}),

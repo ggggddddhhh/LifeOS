@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { executeCalendarDrafts, type ExecuteResultItem } from "@/lib/agent/calendar";
 import { DEFAULT_USER_TZ } from "@/lib/time";
+import { traceEvent } from "@/lib/trace";
 import type { CalendarDraftItem } from "@/lib/types";
 
 /** 本地墙钟已废除（Phase 7.5）：Instant 直接以 ISO Z 传输，墙钟转换只在 Python。 */
@@ -12,16 +13,21 @@ import type { CalendarDraftItem } from "@/lib/types";
  * 部分失败如实逐条上报，绝不假装整体成功。
  */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const t0 = Date.now();
+  let goalId = "";
   try {
     const { id } = await ctx.params;
+    goalId = id;
     const goal = await prisma.goal.findUnique({
       where: { id },
       include: { tasks: true, calWrites: { where: { goalId: id } } },
     });
     if (!goal) return NextResponse.json({ ok: false, error: "目标不存在" }, { status: 404 });
 
+    // Phase 9 超时恢复：confirmed（执行中断/超时遗留）草稿一并纳入重试——
+    // DB 幂等门 + provider pre-check 双层防护保证不重复写入。
     const pending = await prisma.calendarDraft.findMany({
-      where: { goalId: id, status: "pending_confirmation" },
+      where: { goalId: id, status: { in: ["pending_confirmation", "confirmed"] } },
       orderBy: { proposedStart: "asc" },
     });
     if (pending.length === 0) {
@@ -29,7 +35,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     await prisma.calendarDraft.updateMany({
-      where: { goalId: id, status: "pending_confirmation" },
+      where: { goalId: id, status: { in: ["pending_confirmation", "confirmed"] } },
       data: { status: "confirmed" },
     });
 
@@ -62,6 +68,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       status: "duplicate_skipped" as const,
       verify: { found: true, startOk: true, endOk: true, unique: true },
     }));
+    let writeProvider = "ics";
 
     if (toExecute.length > 0) {
       const executed = await executeCalendarDrafts({
@@ -75,6 +82,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         })),
       });
       results = results.concat(executed.results);
+      writeProvider = executed.provider; // 真实写目标（google|ics），不再硬编码
     }
 
     // 逐条落库：draft 状态 + write 记录
@@ -94,7 +102,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
           goalId: id,
           planVersion: goal.revision,
           taskId: r.idempotencyKey.split(":")[2] ?? "",
-          provider: "ics",
+          provider: writeProvider,
           externalEventId: r.externalEventId ?? null,
           idempotencyKey: r.idempotencyKey,
           status: r.status,
@@ -108,8 +116,14 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       where: { goalId: id, planVersion: goal.revision },
       orderBy: { proposedStart: "asc" },
     });
+    traceEvent("cal_confirm", {
+      goalId, ok: true, planVersion: goal.revision, summary,
+      errors: results.filter((r) => r.error).map((r) => (r.error ?? "").split(":", 1)[0]),
+      latencyMs: Date.now() - t0,
+    });
     return NextResponse.json({ ok: true, data: { results, summary, drafts } });
   } catch (e) {
+    traceEvent("cal_confirm", { goalId, ok: false, error: e instanceof Error ? e.message : "confirm failed", latencyMs: Date.now() - t0 });
     // Python 不可达等：草稿停留 confirmed，可重试（幂等保证安全）
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "日历写入失败（草稿保留，可重试确认）" },

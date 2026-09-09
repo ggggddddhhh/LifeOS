@@ -25,11 +25,17 @@ async function createTestGoal(title: string) {
 }
 
 beforeAll(async () => {
+  // 环境隔离（Phase 9）：强制 local mock——否则 AGENT_MODE=auto 在 8000 端口
+  // 恰有真实 agent 运行时会把测试请求发给真实 LLM，5s 超时且产生真实副作用
+  process.env.AGENT_MODE = "local";
+  process.env.LLM_API_KEY = "";
   await prisma.task.deleteMany({});
   await prisma.goal.deleteMany({});
 });
 
 afterAll(async () => {
+  delete process.env.AGENT_MODE;
+  delete process.env.LLM_API_KEY;
   await prisma.task.deleteMany({});
   await prisma.goal.deleteMany({});
   await prisma.$disconnect();

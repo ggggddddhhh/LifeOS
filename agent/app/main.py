@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import time
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -17,6 +19,7 @@ from .errors import (
 from .github import HttpGithubClient
 from .graph import run_plan, run_replan
 from .llm import LLM, MockLLM, get_llm
+from .trace import trace
 from .schemas import (
     PROMPT_VERSION,
     DraftBuildRequest,
@@ -142,13 +145,18 @@ def calendar_drafts(req: DraftBuildRequest, calendar: CalendarClient | None = De
     busy: list[dict] = []
     if calendar is not None:
         try:
+            t0 = time.perf_counter()
             facts = calendar.fetch_facts(max(7, min(30, req.daysLeft)), req.timezone)
+            trace("cal_facts", ok=bool(facts.ok),
+                  error_code=None if facts.ok else (facts.error or "").split(":", 1)[0],
+                  latency_ms=round((time.perf_counter() - t0) * 1000))
             if facts.ok:
                 busy = [
                     {"startUtc": e.startUtc, "endUtc": e.endUtc, "allDay": e.all_day, "localDate": e.local_date}
                     for e in facts.events
                 ]
         except Exception:  # noqa: BLE001 —— 读失败按无日历处理（不阻断草稿）
+            trace("cal_facts", ok=False, error_code="exception")
             busy = []
     drafts = build_drafts(req.tasks, req.daysLeft, busy, req.goalId, req.planVersion, req.timezone)
     placed_ids = {d.taskId for d in drafts}
@@ -162,7 +170,15 @@ def calendar_execute(req: ExecuteRequest):
     provider, name = _write_provider()
     if name == "ics" and not provider.path:  # type: ignore[attr-defined]
         raise AgentError("CAL_AUTH_INVALID", "未配置 CAL_ICS_PATH（写目标缺失）", status_code=503, retryable=False)
+    t0 = time.perf_counter()
     results = execute_drafts(req, provider)
+    statuses: dict[str, int] = {}
+    for r in results:
+        statuses[r.status] = statuses.get(r.status, 0) + 1
+    trace("cal_execute", provider=name, goal_id=str(req.goalId), plan_version=req.planVersion,
+          items=len(results), statuses=statuses,
+          error_codes=[(r.error or "").split(":", 1)[0] for r in results if r.error],
+          latency_ms=round((time.perf_counter() - t0) * 1000))
     return ExecuteResponse(results=results, provider=name)
 
 
@@ -236,7 +252,12 @@ LLM_CALLS_HEADER = "x-llm-calls"  # 本次请求实际 LLM 调用次数（1=一�
 
 @app.post("/v1/plan", response_model=PlanResponse)
 def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep), calendar: CalendarClient | None = Depends(get_calendar_dep)):
+    t0 = time.perf_counter()
     state = run_plan(req.model_dump(), llm, github, calendar)
+    trace("plan", kind="plan", ok=not state.get("error_code"), error_code=state.get("error_code"),
+          llm_calls=state.get("llm_calls", 0), tasks_out=len(state.get("tasks") or []),
+          github_ok=(state.get("github") or {}).get("ok"), calendar_ok=(state.get("calendar") or {}).get("ok"),
+          latency_ms=round((time.perf_counter() - t0) * 1000))
     _raise_if_failed(state)
     return JSONResponse(
         status_code=200,
@@ -247,10 +268,18 @@ def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubCl
 
 @app.post("/v1/replan", response_model=ReplanResponse)
 def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep), calendar: CalendarClient | None = Depends(get_calendar_dep)):
+    t0 = time.perf_counter()
     state = run_replan(req.model_dump(), llm, github, calendar)
+    fin = state.get("finalize") or {}
+    trace("replan", kind="replan", ok=not state.get("error_code"), error_code=state.get("error_code"),
+          llm_calls=state.get("llm_calls", 0), tasks_out=len(state.get("tasks") or []),
+          attempts=state.get("attempts"),
+          github_ok=(state.get("github") or {}).get("ok"), calendar_ok=(state.get("calendar") or {}).get("ok"),
+          capacity_minutes=(state.get("capacity") or {}).get("capacity_minutes"),
+          finalize_adjusted=bool(fin.get("finalizeAdjusted")),
+          latency_ms=round((time.perf_counter() - t0) * 1000))
     _raise_if_failed(state)
     capacity = (state.get("capacity") or {}).get("capacity_minutes")
-    fin = state.get("finalize") or {}
     return JSONResponse(
         status_code=200,
         headers={VERSION_HEADER: PROMPT_VERSION, LLM_CALLS_HEADER: str(state.get("llm_calls", 0))},
