@@ -247,6 +247,48 @@ describe("撤销与用户优先", () => {
     expect(doneCount).toBe(1);
   });
 
+  it("连续撤销逐级回退，不再第二次 400（稳定性验证 S7 发现 #5）", async () => {
+    const goal = await createTestGoal("连续撤销测试");
+    // v2: replan（mock 沿用标题并压缩估时）
+    const r1 = await replan(jsonReq(`/api/goals/${goal.id}/replan`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(((await r1.json()) as { ok: boolean }).ok).toBe(true);
+    // v3: 手动编辑一个任务（est+33）
+    const t = await prisma.task.findFirstOrThrow({ where: { goalId: goal.id } });
+    const edit = await patchTask(
+      jsonReq(`/api/tasks/${t.id}`, "PATCH", { estMinutes: t.estMinutes + 33, expectedUpdatedAt: t.updatedAt.toISOString() }),
+      { params: Promise.resolve({ id: t.id }) },
+    );
+    expect(edit.status).toBe(200);
+    const edited = await prisma.task.findUniqueOrThrow({ where: { id: t.id } });
+    // v4: 再 replan
+    const r4 = await replan(jsonReq(`/api/goals/${goal.id}/replan`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(((await r4.json()) as { ok: boolean }).ok).toBe(true);
+
+    // undo#1：恢复 v4 应用前 = 编辑后状态
+    const u1 = await replanUndo(jsonReq(`/api/goals/${goal.id}/replan/undo`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(((await u1.json()) as { ok: boolean }).ok).toBe(true);
+    const s1 = await prisma.task.findFirstOrThrow({ where: { goalId: goal.id, title: edited.title } });
+    expect(s1.estMinutes).toBe(edited.estMinutes);
+
+    // undo#2：曾直接 400「最近一次计划变更没有可恢复的快照」——修复后应成功消费 v3 的快照
+    const u2 = await replanUndo(jsonReq(`/api/goals/${goal.id}/replan/undo`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    const j2 = (await u2.json()) as { ok: boolean; error?: string };
+    expect(j2.ok).toBe(true);
+    // v4 与 v3 的快照均已标记消费
+    const v4 = await prisma.planVersion.findFirst({ where: { goalId: goal.id, revision: 4 } });
+    const v3 = await prisma.planVersion.findFirst({ where: { goalId: goal.id, revision: 3 } });
+    expect(v4?.undoneAt).not.toBeNull();
+    expect(v3?.undoneAt).not.toBeNull();
+  });
+
   it("Replan 不改写 origin=user 任务（估时/优先级/存在性全保留），AI 任务照常收敛", async () => {
     const goal = await createTestGoal("用户优先测试");
     const tasks = await prisma.task.findMany({ where: { goalId: goal.id }, orderBy: { order: "asc" } });
@@ -272,6 +314,10 @@ describe("撤销与用户优先", () => {
     expect(userTaskAfter.estMinutes).toBe(240); // 未被 mock 的压缩改写
     expect(userTaskAfter.priority).toBe(1);
     expect(userTaskAfter.origin).toBe("user");
+
+    // 回归（稳定性验证 S4 发现）：LLM 回显用户任务标题时不得拼出第二份同名任务
+    const sameTitleCount = await prisma.task.count({ where: { goalId: goal.id, title: "用户锁定的核心任务" } });
+    expect(sameTitleCount).toBe(1);
 
     // AI 任务仍存在（mock 沿用标题）且经历了正常收敛
     const aiTitles = tasks.slice(1).map((t) => t.title);

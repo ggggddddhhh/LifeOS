@@ -49,7 +49,9 @@ export function recentAgentCalls(): readonly AgentCallMeta[] {
 function getConfig() {
   const mode = (process.env.AGENT_MODE as AgentMode) || "local";
   const baseUrl = (process.env.AGENT_CORE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
-  const timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? 30_000);
+  // 稳定性验证实测：deepseek 真实 replan ≈ 110s+（goal_create ≈ 30s）。LLM 路径默认 180s；
+  // AGENT_TIMEOUT_MS 显式设置时仍优先。
+  const timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? process.env.AGENT_LLM_TIMEOUT_MS ?? 180_000);
   return { mode, baseUrl, timeoutMs };
 }
 

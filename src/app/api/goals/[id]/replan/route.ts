@@ -7,6 +7,7 @@ import { traceEvent } from "@/lib/trace";
 import { applyReplanTasks, convergePlanTasks, snapshotOpenTasks, toPlannedTasks } from "@/lib/replan";
 import { getPlanningPolicy } from "@/lib/policy";
 import { declaredMinutesPerDay, workdaysLeft } from "@/lib/policy-core";
+import { toStableConflictError } from "@/lib/conflict";
 import type { PlanDiff, TaskSnapshot } from "@/lib/types";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -60,7 +61,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const oldOpenTitles = new Set(openTasks.filter((t) => t.origin !== "user").map((t) => normalizeTitle(t.title)));
     const doneTitles = new Set(goal.tasks.filter((t) => t.status === "done").map((t) => normalizeTitle(t.title)));
     const userTasks = toPlannedTasks(openTasks.filter((t) => t.origin === "user"));
-    const converged = convergePlanTasks(result.tasks, {
+    // 用户任务以 DB 为准：LLM 回显的同名条目（常见，字段可能已被改写）必须剔除，
+    // 否则与 DB 快照合并后同名任务出现两份（稳定性验证 S4 发现）
+    const userKeys = new Set(userTasks.map((t) => normalizeTitle(t.title)));
+    const aiProposed = result.tasks.filter((t) => !userKeys.has(normalizeTitle(t.title)));
+    const converged = convergePlanTasks(aiProposed, {
       today: new Date().toISOString().slice(0, 10),
       deadlineIso: goal.deadline?.toISOString().slice(0, 10) ?? null,
       workdaysLeft: Math.max(1, wdLeft),
@@ -155,8 +160,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   } catch (e) {
     traceEvent("replan", { runId, goalId, ok: false, error: e instanceof Error ? e.message : "replan failed", latencyMs: Date.now() - t0 });
+    // 并发删除等冲突 → 稳定错误码，绝不透传 Prisma 内部信息（稳定性验证发现 #3）
+    const stable = toStableConflictError(e);
+    if (stable) {
+      return NextResponse.json({ ok: false, error: stable.message }, { status: stable.status });
+    }
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "Replan 失败" },
+      { ok: false, error: "重新规划失败，请稍后重试" },
       { status: 500 },
     );
   }

@@ -6,6 +6,7 @@ import { traceEvent } from "@/lib/trace";
 import { applyReplanTasks, convergePlanTasks, snapshotOpenTasks, toPlannedTasks } from "@/lib/replan";
 import { getPlanningPolicy } from "@/lib/policy";
 import { workdaysLeft } from "@/lib/policy-core";
+import { toStableConflictError } from "@/lib/conflict";
 import type { PlannedTask } from "@/lib/types";
 
 /**
@@ -98,8 +99,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   } catch (e) {
     traceEvent("replan_apply_route", { runId, goalId, ok: false, error: e instanceof Error ? e.message : "apply failed" });
+    const stable = toStableConflictError(e);
+    if (stable) {
+      return NextResponse.json({ ok: false, error: stable.message }, { status: stable.status });
+    }
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "应用计划失败" },
+      { ok: false, error: "应用计划失败，请稍后重试" },
       { status: 500 },
     );
   }

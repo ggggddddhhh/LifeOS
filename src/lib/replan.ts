@@ -255,12 +255,15 @@ export async function undoLastReplan(goalId: string, runId: string) {
   });
   if (!goal) return { error: "目标不存在" as const, status: 404 as const };
 
+  // 逐级回退（稳定性验证 S7 发现 #5）：取「最新未被撤销消费过」的快照版本。
+  // 不再绑死 goal.revision——撤销版本本身无快照，绑死会让上一级快照永远不可达，
+  // 第二次撤销直接 400。undoneAt 标记消费，连续撤销沿版本链逐级向前。
   const version = await prisma.planVersion.findFirst({
-    where: { goalId, revision: goal.revision, snapshotJson: { not: null } },
+    where: { goalId, snapshotJson: { not: null }, undoneAt: null },
     orderBy: { revision: "desc" },
   });
   if (!version || !version.snapshotJson) {
-    return { error: "最近一次计划变更没有可恢复的快照" as const, status: 400 as const };
+    return { error: "没有可恢复的历史快照（更早的变更没有留快照，或都已撤销过）" as const, status: 400 as const };
   }
 
   const snapshot = JSON.parse(version.snapshotJson) as TaskSnapshotForUndo[];
@@ -325,6 +328,11 @@ export async function undoLastReplan(goalId: string, runId: string) {
         reason: `撤销重排：恢复「${version.reason.slice(0, 40)}」之前的任务列表`,
         diffJson: JSON.stringify(diff),
       },
+    });
+    // 标记该快照已被消费：下一次撤销继续向前找更早的未消费快照（逐级回退）
+    await tx.planVersion.update({
+      where: { id: version.id },
+      data: { undoneAt: new Date() },
     });
     return goalUpdated;
   });

@@ -21,7 +21,7 @@ function baseUrl(): string {
   return (process.env.AGENT_CORE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
-async function post<T>(path: string, body: unknown, timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? 30_000), runId?: string): Promise<T> {
+async function post<T>(path: string, body: unknown, timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? process.env.AGENT_CAL_TIMEOUT_MS ?? 120_000), runId?: string): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -64,7 +64,7 @@ export async function buildCalendarDrafts(req: {
   calendarId: string;
   tasks: { taskId: string; title: string; estMinutes: number; priority: number; status?: string; durationDays?: number | null }[];
 }, runId?: string): Promise<DraftBuildResult> {
-  return post<DraftBuildResult>("/v1/calendar/drafts", req, Number(process.env.AGENT_TIMEOUT_MS ?? 30_000), runId);
+  return post<DraftBuildResult>("/v1/calendar/drafts", req, Number(process.env.AGENT_TIMEOUT_MS ?? process.env.AGENT_CAL_TIMEOUT_MS ?? 120_000), runId);
 }
 
 /** 执行已确认草稿（仅由 confirm 路由调用）。时间为 Instant。 */

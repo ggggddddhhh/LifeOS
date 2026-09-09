@@ -64,14 +64,15 @@ model Task {
 }
 
 model PlanVersion {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   goalId       String
-  goal         Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  goal         Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
   revision     Int
   reason       String
   diffJson     String // JSON.stringify(PlanDiff)
   snapshotJson String? // 应用前未完成任务快照（title/status/est/due/deps），供撤销重排恢复
-  createdAt    DateTime @default(now())
+  undoneAt     DateTime? // 该快照已被撤销消费的时间（null=可撤销）；连续撤销按此逐级回退
+  createdAt    DateTime  @default(now())
 
   @@unique([goalId, revision])
 }
