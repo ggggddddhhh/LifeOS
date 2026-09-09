@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskCard, type TaskItem } from "@/components/task-card";
+import { CalendarPanel } from "@/components/calendar-panel";
 import type { PlanDiff, TaskStatus } from "@/lib/types";
 
 export interface GoalView {
@@ -157,6 +158,7 @@ export function GoalBoard({
             </div>
           ))}
         </div>
+        <CalendarPanel goalId={goal.id} />
       </CardContent>
     </Card>
   );

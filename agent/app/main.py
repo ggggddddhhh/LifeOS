@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .calendar import CalendarClient, IcsCalendarClient
+from .calendar_write import IcsWriteProvider, build_drafts, execute_drafts
 from .errors import (
     AGENT_INTERNAL_ERROR,
     AGENT_INPUT_INVALID,
@@ -18,6 +19,10 @@ from .graph import run_plan, run_replan
 from .llm import LLM, MockLLM, get_llm
 from .schemas import (
     PROMPT_VERSION,
+    DraftBuildRequest,
+    DraftBuildResponse,
+    ExecuteRequest,
+    ExecuteResponse,
     PlanRequest,
     PlanResponse,
     PlannedTask,
@@ -82,6 +87,37 @@ async def internal_error_handler(_req: Request, exc: Exception):
         status_code=500,
         content=error_body(AGENT_INTERNAL_ERROR, "Agent 内部错误", False),
     )
+
+
+@app.post("/v1/calendar/drafts", response_model=DraftBuildResponse)
+def calendar_drafts(req: DraftBuildRequest, calendar: CalendarClient | None = Depends(get_calendar_dep)):
+    """Draft Builder：只读排期（事件级空闲窗口），永不写日历。独立于 Planner/LLM（Safety Gate）。"""
+    from datetime import datetime
+
+    busy_events: list[tuple[datetime, datetime]] = []
+    if calendar is not None:
+        try:
+            facts = calendar.fetch_facts(max(7, min(30, req.daysLeft)))
+            if facts.ok:
+                busy_events = [
+                    (datetime.fromisoformat(e.start), datetime.fromisoformat(e.end)) for e in facts.events
+                ]
+        except Exception:  # noqa: BLE001 —— 读失败按无日历处理（不阻断草稿）
+            busy_events = []
+    drafts = build_drafts(req.tasks, req.daysLeft, busy_events, req.goalId, req.planVersion)
+    placed_ids = {d.taskId for d in drafts}
+    unplaced = [t["taskId"] for t in req.tasks if t.get("status", "todo") != "done" and t["taskId"] not in placed_ids]
+    return DraftBuildResponse(drafts=drafts, unplacedTaskIds=unplaced)
+
+
+@app.post("/v1/calendar/execute", response_model=ExecuteResponse)
+def calendar_execute(req: ExecuteRequest):
+    """执行用户已确认的草稿：幂等复检 → 冲突复检 → CREATE → Verify。v1 仅 create。"""
+    provider = IcsWriteProvider()
+    if not provider.path:
+        raise AgentError("CAL_AUTH_INVALID", "未配置 CAL_ICS_PATH（写目标缺失）", status_code=503, retryable=False)
+    results = execute_drafts(req, provider)
+    return ExecuteResponse(results=results, provider=provider.provider_name)
 
 
 @app.get("/health")

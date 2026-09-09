@@ -85,6 +85,27 @@ export interface ReplanResult {
   finalize?: FinalizeInfo | null; // Phase 6：Python Finalize 收敛观测块（python 路径才有）
 }
 
+/** Phase 7：日历写入提案（未落日历；确认后才执行） */
+export interface CalendarDraftItem {
+  taskId: string;
+  taskTitle: string;
+  proposedStart: string;
+  proposedEnd: string;
+  calendarId: string;
+  actionType: "create";
+  reason?: string | null;
+  idempotencyKey: string;
+}
+
+export type CalendarDraftStatus =
+  | "pending_confirmation"
+  | "confirmed"
+  | "executed"
+  | "failed"
+  | "stale_conflict"
+  | "duplicate_skipped"
+  | "cancelled";
+
 export type Envelope<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };

@@ -202,3 +202,49 @@ class CapacityReport(BaseModel):
     daily_window_minutes: int = 0  # 推断参数：每日总窗口
     conflicts: list[CapacityConflict] = []
     signals: list[str] = []
+
+
+# ---------------------------------------------------------------- Phase 7：Calendar 写入（确认制）
+
+class CalendarDraftItem(BaseModel):
+    """日历写入提案（未落日历；只有用户确认后才执行）。"""
+    taskId: str
+    taskTitle: str
+    proposedStart: str  # ISO datetime（局部时区）
+    proposedEnd: str
+    calendarId: str = "primary"
+    actionType: str = "create"  # v1 仅 create
+    reason: str | None = None
+    idempotencyKey: str  # goalId:planVersion:taskId:occurrence
+
+
+class DraftBuildRequest(BaseModel):
+    goalId: str
+    planVersion: int
+    daysLeft: int = Field(ge=1, le=3650)
+    tasks: list[dict] = Field(min_length=1)  # [{taskId,title,estMinutes,priority,status?,durationDays?}]
+
+
+class DraftBuildResponse(BaseModel):
+    drafts: list[CalendarDraftItem]
+    unplacedTaskIds: list[str] = []  # 无空闲窗口容纳的任务（如实上报）
+
+
+class ExecuteRequest(BaseModel):
+    goalId: str
+    planVersion: int
+    drafts: list[CalendarDraftItem] = Field(min_length=1)  # 仅由确认流程传入
+    tasks: list[dict] = Field(min_length=1)  # 校验用（taskId→est）
+
+
+class ExecuteResultItem(BaseModel):
+    idempotencyKey: str
+    status: str  # success | duplicate_skipped | stale_conflict | failed
+    externalEventId: str | None = None
+    verify: dict | None = None
+    error: str | None = None
+
+
+class ExecuteResponse(BaseModel):
+    results: list[ExecuteResultItem]
+    provider: str

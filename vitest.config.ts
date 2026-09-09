@@ -8,6 +8,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/tests/**/*.test.ts"],
+    fileParallelism: false, // 多个文件共享测试数据库，必须串行
     env: {
       DATABASE_URL: "file:./test.db",
     },

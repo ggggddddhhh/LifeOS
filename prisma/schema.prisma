@@ -18,6 +18,8 @@ model Goal {
   updatedAt   DateTime      @updatedAt
   tasks       Task[]
   versions    PlanVersion[]
+  calDrafts   CalendarDraft[]
+  calWrites   CalendarWrite[]
 }
 
 model Task {
@@ -53,4 +55,44 @@ model PlanVersion {
   createdAt DateTime @default(now())
 
   @@unique([goalId, revision])
+}
+
+// Phase 7：Calendar 写入闭环（确认制）。Draft=提案（未落日历），Write=已执行记录
+// （ExternalEventLink 语义并入：provider + externalEventId + taskId + planVersion）。
+model CalendarDraft {
+  id             String   @id @default(cuid())
+  goalId         String
+  goal           Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  planVersion    Int
+  taskId         String
+  taskTitle      String
+  proposedStart  DateTime
+  proposedEnd    DateTime
+  calendarId     String   @default("primary")
+  actionType     String   @default("create") // v1 仅 create
+  reason         String?
+  status         String   @default("pending_confirmation")
+  // pending_confirmation | confirmed | executed | failed | stale_conflict | duplicate_skipped | cancelled
+  idempotencyKey String   @unique // {goalId}:{planVersion}:{taskId}:{occurrence}
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([goalId, status])
+}
+
+model CalendarWrite {
+  id              String   @id @default(cuid())
+  draftId         String   @unique
+  goalId          String
+  goal            Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  planVersion     Int
+  taskId          String
+  provider        String   @default("ics")
+  externalEventId String? // ICS UID / provider event id
+  idempotencyKey  String   @unique
+  status          String // success | failed | stale_conflict | duplicate_skipped
+  error           String?
+  createdAt       DateTime @default(now())
+
+  @@index([goalId, planVersion])
 }
