@@ -88,15 +88,26 @@ def _raise_if_failed(state: dict) -> None:
         )
 
 
+VERSION_HEADER = "x-prompt-version"
+
+
 @app.post("/v1/plan", response_model=PlanResponse)
 def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep)):
     state = run_plan(req.model_dump(), llm)
     _raise_if_failed(state)
-    return PlanResponse(tasks=[PlannedTask(**t) for t in state["tasks"]])
+    return JSONResponse(
+        status_code=200,
+        headers={VERSION_HEADER: PROMPT_VERSION},
+        content=PlanResponse(tasks=[PlannedTask(**t) for t in state["tasks"]]).model_dump(),
+    )
 
 
 @app.post("/v1/replan", response_model=ReplanResponse)
 def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep)):
     state = run_replan(req.model_dump(), llm)
     _raise_if_failed(state)
-    return ReplanResponse(reason=state["reason"], tasks=[PlannedTask(**t) for t in state["tasks"]])
+    return JSONResponse(
+        status_code=200,
+        headers={VERSION_HEADER: PROMPT_VERSION},
+        content=ReplanResponse(reason=state["reason"], tasks=[PlannedTask(**t) for t in state["tasks"]]).model_dump(),
+    )

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { planGoal } from "@/lib/llm";
+import { agentPlanGoal } from "@/lib/agent/client";
 import { sanitizeDependencies, sanitizeSchedule, computePlanDiff } from "@/lib/plan";
 import { normalizeTitle } from "@/lib/llm/parse";
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "deadline 格式无效" }, { status: 400 });
     }
 
-    const planned = await planGoal({
+    const planned = await agentPlanGoal({
       title,
       description: body.description?.trim() || undefined,
       deadline: deadline?.toISOString(),

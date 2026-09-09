@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { replanGoal } from "@/lib/llm";
+import { agentReplanGoal } from "@/lib/agent/client";
 import { computePlanDiff, enforceTaskBudget, enforceTimeBudget, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
 import { normalizeTitle } from "@/lib/llm/parse";
 import type { PlanDiff, TaskSnapshot } from "@/lib/types";
@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
     }));
 
-    const result = await replanGoal({
+    const result = await agentReplanGoal({
       goalTitle: goal.title,
       goalDescription: goal.description ?? undefined,
       deadline: goal.deadline?.toISOString(),

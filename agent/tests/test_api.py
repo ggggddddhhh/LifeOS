@@ -49,6 +49,19 @@ class TestPlanContract:
     def test_missing_title_422(self, api_client):
         assert api_client.post("/v1/plan", json={}).status_code == 422
 
+    def test_prompt_version_header(self, api_client):
+        res = api_client.post("/v1/plan", json={"title": "x"})
+        assert res.status_code == 200
+        assert res.headers["x-prompt-version"] == "2"
+
+    def test_replan_prompt_version_header(self, api_client):
+        res = api_client.post("/v1/replan", json={
+            "goalTitle": "g", "daysLeft": 2,
+            "tasks": [{"title": "a", "status": "todo", "estMinutes": 60, "priority": 1}],
+        })
+        assert res.status_code == 200
+        assert res.headers["x-prompt-version"] == "2"
+
 
 class TestReplanContract:
     def test_mock_replan(self, api_client):
