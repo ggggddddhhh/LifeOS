@@ -49,12 +49,27 @@ class ReplanRequest(BaseModel):
     declaredMinutesPerDay: Optional[list[int]] = None
 
 
+class FinalizeAdjustment(BaseModel):
+    type: str  # capacity_trim | invalid_date | dependency_adjustment | anti_expansion_trim | completed_task_removed | minimal_plan_floor
+    detail: str
+
+
+class FinalizeInfo(BaseModel):
+    """Phase 6 可观测块：LLM 提议 → 最终落库计划的收敛过程。"""
+    llmProposedMinutes: int
+    finalizedMinutes: int
+    capacityMinutes: Optional[int] = None
+    finalizeAdjusted: bool
+    adjustments: list[FinalizeAdjustment] = []
+
+
 class ReplanResponse(BaseModel):
     reason: str
     tasks: list[PlannedTask]
     # 本次 replan 实际采用的可用容量（分钟）。仅当存在 Calendar 数据或用户声明时返回；
     # TS 侧用它覆写 enforceTimeBudget 的默认 480×天数 上限（扩展容量输入来源，不改硬约束原则）。
     capacityMinutes: Optional[int] = None
+    finalize: Optional[FinalizeInfo] = None
 
 
 # ---------------------------------------------------------------- Phase 4：GitHub 只读工具

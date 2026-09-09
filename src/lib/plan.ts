@@ -210,9 +210,12 @@ export function enforceTimeBudget(
   capPerDay = CAPACITY_MINUTES_PER_DAY,
   capacityOverride?: number | null,
 ): { tasks: PlannedTask[]; note: string | null } {
-  const cap = capacityOverride && capacityOverride > 0
-    ? capacityOverride
-    : Math.max(capPerDay, daysLeft * capPerDay);
+  // 覆写语义（与 Python finalize 镜像）：>= 0 即合法（0 = 零容量 → 最小可行计划下限 15min）；
+  // 仅 null/负数回退默认。
+  const cap =
+    capacityOverride !== null && capacityOverride !== undefined && capacityOverride >= 0
+      ? Math.max(capacityOverride, 15)
+      : Math.max(capPerDay, daysLeft * capPerDay);
   const out = [...tasks];
   const total = () => out.reduce((s, t) => s + t.estMinutes, 0);
   if (total() <= cap) return { tasks: out, note: null };

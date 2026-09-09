@@ -131,7 +131,17 @@ class TestNormalizeTasks:
 
 class TestFinalize:
     def test_output_keys_are_exact_camelcase(self):
+        from app.nodes import finalize_node
+
         state = finalize_node({
+            "kind": "replan",
+            "request": {
+                "daysLeft": 7,
+                "deadline": None,
+                "tasks": [{"title": "b", "status": "todo", "estMinutes": 30, "priority": 2}],
+            },
+            "analysis": {"daysLeft": 7},
+            "reason": "原始理由",
             "tasks": [
                 {
                     "title": "a",
@@ -141,14 +151,14 @@ class TestFinalize:
                     "durationDays": 3,
                     "startDate": "2026-09-09",
                     "dueDate": "2026-09-11",
-                    "dependsOn": ["x"],
+                    "dependsOn": ["x"],  # 悬空引用将被丢弃，但不影响键集合
                 },
                 {"title": "b", "priority": 2, "estMinutes": 30},
-            ]
+            ],
         })
-        assert set(state["tasks"][0].keys()) == {
-            "title", "notes", "priority", "estMinutes", "durationDays", "startDate", "dueDate", "dependsOn",
-        }
-        assert set(state["tasks"][1].keys()) == {"title", "priority", "estMinutes"}
+        keys = {k for t in state["tasks"] for k in t.keys()}
+        assert keys <= {"title", "notes", "priority", "estMinutes", "durationDays", "startDate", "dueDate", "dependsOn"}
+        assert {"title", "priority", "estMinutes"} <= set(state["tasks"][0].keys())
+        assert "finalize" in state and state["finalize"]["finalizeAdjusted"] in (True, False)
         # 可 JSON 序列化（契约出口）
         json.dumps(state["tasks"], ensure_ascii=False)

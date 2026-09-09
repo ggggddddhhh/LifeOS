@@ -199,9 +199,15 @@ describe("enforceTimeBudget", () => {
     expect(tasks.map((t) => t.title)).not.toContain("P3可选");
   });
 
-  it("非法覆写值（0/负数）回退默认上限", () => {
-    const { tasks } = enforceTimeBudget([task({ title: "A", estMinutes: 600 })], 2, 480, 0);
+  it("负数覆写回退默认上限（0 是合法的零容量，走最小可行计划）", () => {
+    const { tasks } = enforceTimeBudget([task({ title: "A", estMinutes: 600 })], 2, 480, -5);
     expect(tasks.length).toBe(1); // 960 容量内不裁剪
+    const zero = enforceTimeBudget(
+      [task({ title: "P1", priority: 1, estMinutes: 600 }), task({ title: "P3", priority: 3, estMinutes: 120 })],
+      2, 480, 0,
+    );
+    expect(zero.tasks.map((t) => t.title)).toEqual(["P1"]); // 零容量 → 只留最小 P1
+    expect(zero.tasks[0].estMinutes).toBe(15);
   });
 
   it("超容量先砍低优先级且无人依赖的任务", () => {

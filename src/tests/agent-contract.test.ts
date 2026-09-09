@@ -181,6 +181,51 @@ describe("契约：Python → TS 响应字段（复验生效）", () => {
     expect(recentAgentCalls().at(-1)!.fallbackReason).toBe("empty_reason");
   });
 
+  it("finalize 观测块透传（Phase 6）", async () => {
+    process.env.AGENT_MODE = "python";
+    process.env.AGENT_CORE_URL = url;
+    handler = () => ({
+      status: 200,
+      headers: { "x-prompt-version": PROMPT_VERSION },
+      json: {
+        reason: "最终理由（最终调整：容量不足…。最终计划 2 项共 600 分钟，容量上限 600 分钟）",
+        tasks: [{ title: "a", priority: 1, estMinutes: 600 }],
+        capacityMinutes: 600,
+        finalize: {
+          llmProposedMinutes: 1200,
+          finalizedMinutes: 600,
+          capacityMinutes: 600,
+          finalizeAdjusted: true,
+          adjustments: [{ type: "capacity_trim", detail: "砍掉 X、Y" }],
+        },
+      },
+    });
+    const r = await agentReplanGoal({
+      goalTitle: "g",
+      daysLeft: 5,
+      tasks: [{ title: "a", status: "todo", estMinutes: 1200, priority: 1 }],
+    });
+    expect(r.finalize).not.toBeNull();
+    expect(r.finalize!.llmProposedMinutes).toBe(1200);
+    expect(r.finalize!.finalizedMinutes).toBe(600);
+    expect(r.finalize!.finalizeAdjusted).toBe(true);
+    expect(r.finalize!.adjustments[0].type).toBe("capacity_trim");
+    expect(r.capacityMinutes).toBe(600);
+    // 畸形 finalize 块 → 忽略（null），不影响任务
+    handler = () => ({
+      status: 200,
+      headers: { "x-prompt-version": PROMPT_VERSION },
+      json: { reason: "r", tasks: [{ title: "a", priority: 1, estMinutes: 60 }], finalize: "garbage" },
+    });
+    const r2 = await agentReplanGoal({
+      goalTitle: "g",
+      daysLeft: 5,
+      tasks: [{ title: "a", status: "todo", estMinutes: 60, priority: 1 }],
+    });
+    expect(r2.finalize).toBeNull();
+    expect(r2.tasks.length).toBe(1);
+  });
+
   it("capacityMinutes 透传（Calendar 容量进入 TS 硬约束输入）", async () => {
     process.env.AGENT_MODE = "python";
     process.env.AGENT_CORE_URL = url;

@@ -129,6 +129,7 @@ def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGith
     state = run_replan(req.model_dump(), llm, github, calendar)
     _raise_if_failed(state)
     capacity = (state.get("capacity") or {}).get("capacity_minutes")
+    fin = state.get("finalize") or {}
     return JSONResponse(
         status_code=200,
         headers={VERSION_HEADER: PROMPT_VERSION, LLM_CALLS_HEADER: str(state.get("llm_calls", 0))},
@@ -136,5 +137,6 @@ def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGith
             reason=state["reason"],
             tasks=[PlannedTask(**t) for t in state["tasks"]],
             capacityMinutes=capacity if isinstance(capacity, int) else None,
+            finalize=fin if fin else None,
         ).model_dump(),
     )

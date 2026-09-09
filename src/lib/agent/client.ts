@@ -14,7 +14,7 @@
 
 import { planGoal as localPlanGoal, replanGoal as localReplanGoal } from "@/lib/llm";
 import { normalizePlannedTasks } from "@/lib/llm/parse";
-import type { PlanGoalInput, PlannedTask, ReplanInput, ReplanResult } from "@/lib/types";
+import type { FinalizeInfo, PlanGoalInput, PlannedTask, ReplanInput, ReplanResult } from "@/lib/types";
 
 type AgentMode = "local" | "python" | "auto";
 
@@ -132,7 +132,7 @@ function validateReplanResponse(data: unknown): ReplanResult {
   if (typeof data !== "object" || data === null) {
     throw new RemoteAgentError("schema_mismatch", "Agent 响应不是对象");
   }
-  const r = data as { reason?: unknown; tasks?: unknown; capacityMinutes?: unknown };
+  const r = data as { reason?: unknown; tasks?: unknown; capacityMinutes?: unknown; finalize?: unknown };
   if (typeof r.reason !== "string" || !r.reason.trim()) {
     throw new RemoteAgentError("empty_reason", "Agent 响应缺少 reason");
   }
@@ -143,10 +143,29 @@ function validateReplanResponse(data: unknown): ReplanResult {
   if (tasks.length === 0) {
     throw new RemoteAgentError("empty_tasks", "Agent 返回任务为空");
   }
+  let finalize: FinalizeInfo | null = null;
+  if (r.finalize && typeof r.finalize === "object") {
+    const f = r.finalize as Record<string, unknown>;
+    if (typeof f.llmProposedMinutes === "number" && typeof f.finalizedMinutes === "number" && typeof f.finalizeAdjusted === "boolean") {
+      finalize = {
+        llmProposedMinutes: f.llmProposedMinutes,
+        finalizedMinutes: f.finalizedMinutes,
+        capacityMinutes: typeof f.capacityMinutes === "number" ? f.capacityMinutes : null,
+        finalizeAdjusted: f.finalizeAdjusted,
+        adjustments: Array.isArray(f.adjustments)
+          ? f.adjustments
+              .filter((a): a is Record<string, unknown> => typeof a === "object" && a !== null)
+              .map((a) => ({ type: String(a.type ?? ""), detail: String(a.detail ?? "") }))
+          : [],
+      };
+    }
+  }
   return {
     reason: r.reason.trim(),
     tasks,
-    capacityMinutes: typeof r.capacityMinutes === "number" && r.capacityMinutes > 0 ? r.capacityMinutes : null,
+    // 0 是合法值（零容量 → 最小可行计划）；仅负数/缺失视为无覆写
+    capacityMinutes: typeof r.capacityMinutes === "number" && r.capacityMinutes >= 0 ? r.capacityMinutes : null,
+    finalize,
   };
 }
 

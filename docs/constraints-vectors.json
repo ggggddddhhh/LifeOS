@@ -1,0 +1,73 @@
+{
+  "specVersion": "1",
+  "description": "Python finalize.py 与 TS plan.ts 的共享黄金向量：两侧实现必须对这些输入产出一致的期望输出。修改任何一侧的约束语义前先改这里。",
+  "cases": [
+    {
+      "name": "capacity_trim_cuts_low_priority",
+      "tasks": [
+        { "title": "P1核心", "priority": 1, "estMinutes": 600 },
+        { "title": "P2重要", "priority": 2, "estMinutes": 500 },
+        { "title": "P3可选", "priority": 3, "estMinutes": 300 }
+      ],
+      "daysLeft": 2,
+      "capacityOverride": 960,
+      "expect": { "titles": ["P1核心"], "total": 600, "notContains": ["P3可选", "P2重要"], "adjustmentTypes": ["capacity_trim"] }
+    },
+    {
+      "name": "capacity_scale_p1_chain",
+      "tasks": [
+        { "title": "A", "priority": 1, "estMinutes": 800 },
+        { "title": "B", "priority": 1, "estMinutes": 800, "dependsOn": ["A"] }
+      ],
+      "daysLeft": 1,
+      "capacityOverride": 480,
+      "expect": { "titles": ["A", "B"], "totalAtMost": 510, "minPerTask": 15, "adjustmentTypes": ["capacity_trim"] }
+    },
+    {
+      "name": "anti_expansion_prefers_added",
+      "tasks": [
+        { "title": "保留一", "priority": 2, "estMinutes": 60 },
+        { "title": "保留二", "priority": 2, "estMinutes": 60 },
+        { "title": "新增A", "priority": 3, "estMinutes": 60 },
+        { "title": "新增B", "priority": 1, "estMinutes": 60 }
+      ],
+      "oldOpenTitles": ["保留一", "保留二"],
+      "daysLeft": 7,
+      "capacityOverride": null,
+      "expect": { "titles": ["保留一", "保留二", "新增B"], "total": 180, "adjustmentTypes": ["anti_expansion_trim"] }
+    },
+    {
+      "name": "cycle_removed",
+      "tasks": [
+        { "title": "A", "priority": 1, "estMinutes": 60, "dependsOn": ["C"] },
+        { "title": "B", "priority": 2, "estMinutes": 60, "dependsOn": ["A"] },
+        { "title": "C", "priority": 2, "estMinutes": 60, "dependsOn": ["B"] }
+      ],
+      "daysLeft": 7,
+      "capacityOverride": null,
+      "expect": { "titles": ["A", "B", "C"], "total": 180, "adjustmentTypes": ["dependency_adjustment"] }
+    },
+    {
+      "name": "dates_clamped_and_ordered",
+      "tasks": [
+        { "title": "A", "priority": 1, "estMinutes": 60, "startDate": "2030-01-01", "dueDate": "2030-12-31" },
+        { "title": "B", "priority": 1, "estMinutes": 60, "dueDate": "2020-01-01", "dependsOn": ["A"] }
+      ],
+      "today": "2026-09-09",
+      "deadline": "2026-09-23",
+      "daysLeft": 14,
+      "capacityOverride": null,
+      "expect": { "titles": ["A", "B"], "total": 120, "dueDateOf": { "B": "2026-09-23" }, "adjustmentTypes": ["invalid_date"] }
+    },
+    {
+      "name": "capacity_zero_minimal_floor",
+      "tasks": [
+        { "title": "P1核心", "priority": 1, "estMinutes": 300 },
+        { "title": "P3可选", "priority": 3, "estMinutes": 120 }
+      ],
+      "daysLeft": 3,
+      "capacityOverride": 0,
+      "expect": { "titles": ["P1核心"], "minPerTask": 15, "adjustmentTypes": ["capacity_trim", "minimal_plan_floor"] }
+    }
+  ]
+}

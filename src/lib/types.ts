@@ -65,10 +65,24 @@ export interface ReplanInput {
   tasks: TaskSnapshot[]; // 当前全部任务（含 done）
 }
 
+export interface FinalizeAdjustment {
+  type: string;
+  detail: string;
+}
+
+export interface FinalizeInfo {
+  llmProposedMinutes: number;
+  finalizedMinutes: number;
+  capacityMinutes: number | null;
+  finalizeAdjusted: boolean;
+  adjustments: FinalizeAdjustment[];
+}
+
 export interface ReplanResult {
   reason: string; // 一句话说明为何这样调整
   tasks: PlannedTask[]; // 未完成部分的全新计划
   capacityMinutes?: number | null; // 实际采用的可用容量（Calendar 观察/用户声明时返回）
+  finalize?: FinalizeInfo | null; // Phase 6：Python Finalize 收敛观测块（python 路径才有）
 }
 
 export type Envelope<T> =

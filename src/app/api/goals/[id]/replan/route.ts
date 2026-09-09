@@ -45,13 +45,27 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const today = new Date().toISOString().slice(0, 10);
     sanitizeSchedule(result.tasks, deps, { today, deadline: goal.deadline?.toISOString().slice(0, 10) ?? null });
     const oldOpenTitles = new Set(openTasks.map((t) => normalizeTitle(t.title)));
-    let finalTasks = enforceTaskBudget(result.tasks, oldOpenTitles);
+    const afterCountGuard = enforceTaskBudget(result.tasks, oldOpenTitles);
     // 容量输入源扩展：Agent 返回真实可用容量（Calendar 观察/用户声明）时覆写默认 480×天数
-    const budget = enforceTimeBudget(finalTasks, daysLeft, 480, result.capacityMinutes ?? null);
-    finalTasks = budget.tasks;
+    const budget = enforceTimeBudget(afterCountGuard, daysLeft, 480, result.capacityMinutes ?? null);
+    let finalTasks = budget.tasks;
     // 丢弃与已完成任务同名的条目：LLM 偶尔会"复活"已完成工作（Phase 2 评测发现）
     const doneTitles = new Set(goal.tasks.filter((t) => t.status === "done").map((t) => normalizeTitle(t.title)));
     finalTasks = finalTasks.filter((t) => !doneTitles.has(normalizeTitle(t.title)));
+
+    // Phase 6 invariant breach 检测：Python 路径（带 finalize 观测块）已主动收敛，
+    // TS 守卫仍修改其输出 = 语义漂移信号，必须显式记录，绝不静默。
+    if (result.finalize) {
+      const trimmedByCount = afterCountGuard.length < result.tasks.length;
+      const trimmedByTime = budget.note !== null;
+      const trimmedByDone = finalTasks.length < afterCountGuard.length;
+      if (trimmedByCount || trimmedByTime || trimmedByDone) {
+        console.error(
+          `[invariant-breach] TS 守卫修改了 Agent 已收敛的计划: count=${trimmedByCount} time=${trimmedByTime} done=${trimmedByDone}; ` +
+            `python finalize=${JSON.stringify(result.finalize)}; tsNote=${budget.note ?? "无"}`,
+        );
+      }
+    }
     const reason = budget.note ? `${result.reason}（${budget.note}）` : result.reason;
 
     const oldOpen = openTasks.map((t) => ({
@@ -113,7 +127,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       return goalUpdated;
     });
 
-    return NextResponse.json({ ok: true, data: { reason, diff, goal: updated } });
+    return NextResponse.json({
+      ok: true,
+      data: { reason, diff, goal: updated, finalize: result.finalize ?? null },
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Replan 失败" },

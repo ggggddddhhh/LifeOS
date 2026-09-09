@@ -314,21 +314,31 @@ def make_validate_node():
 # ---------------------------------------------------------------- Finalize（确定性）
 
 def finalize_node(state: AgentState) -> AgentState:
-    # 契约出口：确保字段名恰为 camelCase 且无多余键
-    tasks = [
-        {
-            "title": t["title"],
-            **({"notes": t["notes"]} if t.get("notes") else {}),
-            "priority": t["priority"],
-            "estMinutes": t["estMinutes"],
-            **({"durationDays": t["durationDays"]} if t.get("durationDays") else {}),
-            **({"startDate": t["startDate"]} if t.get("startDate") else {}),
-            **({"dueDate": t["dueDate"]} if t.get("dueDate") else {}),
-            **({"dependsOn": t["dependsOn"]} if t.get("dependsOn") else {}),
-        }
-        for t in state["tasks"]
-    ]
-    return {"tasks": tasks}
+    # Phase 6：主动收敛（依赖/日期/反扩散/容量/完成过滤）+ reason 同步重写。
+    # 与 TS plan.ts 镜像（语义真源 docs/constraints-vectors.json），TS 侧退居 defense-in-depth。
+    from .finalize import finalize_plan, norm_title
+
+    tasks = [dict(t) for t in state["tasks"]]
+    req = state["request"]
+    if state["kind"] == "replan":
+        old_open = {norm_title(t["title"]) for t in req.get("tasks", []) if t.get("status") != "done"}
+        done = {norm_title(t["title"]) for t in req.get("tasks", []) if t.get("status") == "done"}
+        capacity = (state.get("capacity") or {}).get("capacity_minutes")
+        days_left = max(1, int(req.get("daysLeft", 7)))
+        deadline = (req.get("deadline") or "")[:10] or None
+        tasks, reason, finalize_block = finalize_plan(
+            tasks, kind="replan", days_left=days_left, deadline=deadline,
+            old_open_titles=old_open, done_titles=done,
+            capacity_minutes=capacity if isinstance(capacity, int) else None,
+            reason=state.get("reason", ""),
+        )
+    else:
+        deadline = (req.get("deadline") or "")[:10] or None
+        days_left = int(state.get("analysis", {}).get("daysLeft", 14))
+        tasks, _reason, finalize_block = finalize_plan(
+            tasks, kind="plan", days_left=days_left, deadline=deadline, reason="",
+        )
+    return {"tasks": tasks, **({"reason": reason} if state["kind"] == "replan" else {}), "finalize": finalize_block}
 
 
 def fail_node(state: AgentState) -> AgentState:

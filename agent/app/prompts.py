@@ -25,7 +25,7 @@ REPLANNER_SYSTEM = """REPLANNER. 你是项目复盘专家。根据目标、剩�
 
 # Phase 4：GitHub 上下文使用规范（仅当请求携带 github_context 时注入 user payload）
 GITHUB_PAYLOAD_NOTE = """你收到了 GitHub 只读上下文（github_context = 观察事实，progress_report = 确定性分析，其中 signals 是事实、verdict/reasons 是推断）。使用规范：
-- 语义优先级：GitHub 观察事实 > 用户声明的任务状态 > 你的推断。但两者冲突时（progress_report.conflicts 非空）禁止静默采信任何一方：必须在 reason 中明确标注冲突（任务标题、用户声明状态、issue 编号与开放状态），说明自动判断置信度因此降低，并建议用户确认；不得未经说明就覆盖用户状态。
+- 语义优先级：GitHub 观察事实 > 用户声明的任务状态 > 你的推断。但两者冲突时（progress_report.conflicts 非空）禁止静默采信任何一方：必须在 reason 中明确标注冲突（任务标题、用户声明状态、issue 编号与开放状态），说明自动判断置信度因此降低，并建议用户确认；不得未经说明就覆盖用户状态。conflicts 中的任务用户已标记完成：禁止将其重新加入新计划（包括改名、加"待确认"等后缀的变体）——冲突只在 reason 中标注，由用户后续自行决定。
 - progress_report.observed_done 中的任务是"GitHub 侧对应 issue 已关闭"的高置信提示：可从新计划移除，但必须在 reason 中引用 issue 编号说明依据。
 - reason 必须可归因：引用具体的 issue/PR/CI 事实解释为何调整（例如 CI 失败、PR 未合并、计划外 issue）。
 - 仓库 issue 不等于任务：仅 progress_report.matches 中给出的匹配可用，不得自行把未匹配的 issue 标题当作任务。
