@@ -85,16 +85,19 @@ export interface ReplanResult {
   finalize?: FinalizeInfo | null; // Phase 6：Python Finalize 收敛观测块（python 路径才有）
 }
 
-/** Phase 7：日历写入提案（未落日历；确认后才执行） */
+/** Phase 7/7.5：日历写入提案（未落日历；确认后才执行）。时间为 Instant + 规划时区。 */
 export interface CalendarDraftItem {
   taskId: string;
   taskTitle: string;
-  proposedStart: string;
-  proposedEnd: string;
+  startUtc: string; // ISO-8601 Z（Instant）
+  endUtc: string; // ISO-8601 Z（Instant）
+  timezone: string; // IANA 规划时区
   calendarId: string;
   actionType: "create";
   reason?: string | null;
   idempotencyKey: string;
+  ambiguous?: boolean;
+  nonexistent?: boolean;
 }
 
 export type CalendarDraftStatus =

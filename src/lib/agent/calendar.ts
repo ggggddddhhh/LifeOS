@@ -52,15 +52,17 @@ export async function buildCalendarDrafts(req: {
   goalId: string;
   planVersion: number;
   daysLeft: number;
+  timezone: string;
   tasks: { taskId: string; title: string; estMinutes: number; priority: number; status?: string; durationDays?: number | null }[];
 }): Promise<DraftBuildResult> {
   return post<DraftBuildResult>("/v1/calendar/drafts", req);
 }
 
-/** 执行已确认草稿（仅由 confirm 路由调用）。 */
+/** 执行已确认草稿（仅由 confirm 路由调用）。时间为 Instant。 */
 export async function executeCalendarDrafts(req: {
   goalId: string;
   planVersion: number;
+  timezone: string;
   drafts: CalendarDraftItem[];
   tasks: { taskId: string; estMinutes: number }[];
 }): Promise<{ results: ExecuteResultItem[]; provider: string }> {

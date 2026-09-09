@@ -91,20 +91,20 @@ async def internal_error_handler(_req: Request, exc: Exception):
 
 @app.post("/v1/calendar/drafts", response_model=DraftBuildResponse)
 def calendar_drafts(req: DraftBuildRequest, calendar: CalendarClient | None = Depends(get_calendar_dep)):
-    """Draft Builder：只读排期（事件级空闲窗口），永不写日历。独立于 Planner/LLM（Safety Gate）。"""
-    from datetime import datetime
-
-    busy_events: list[tuple[datetime, datetime]] = []
+    """Draft Builder：只读排期（规划时区墙钟空间的事件级空闲窗口），永不写日历。
+    独立于 Planner/LLM（Safety Gate）。"""
+    busy: list[dict] = []
     if calendar is not None:
         try:
-            facts = calendar.fetch_facts(max(7, min(30, req.daysLeft)))
+            facts = calendar.fetch_facts(max(7, min(30, req.daysLeft)), req.timezone)
             if facts.ok:
-                busy_events = [
-                    (datetime.fromisoformat(e.start), datetime.fromisoformat(e.end)) for e in facts.events
+                busy = [
+                    {"startUtc": e.startUtc, "endUtc": e.endUtc, "allDay": e.all_day, "localDate": e.local_date}
+                    for e in facts.events
                 ]
         except Exception:  # noqa: BLE001 —— 读失败按无日历处理（不阻断草稿）
-            busy_events = []
-    drafts = build_drafts(req.tasks, req.daysLeft, busy_events, req.goalId, req.planVersion)
+            busy = []
+    drafts = build_drafts(req.tasks, req.daysLeft, busy, req.goalId, req.planVersion, req.timezone)
     placed_ids = {d.taskId for d in drafts}
     unplaced = [t["taskId"] for t in req.tasks if t.get("status", "todo") != "done" and t["taskId"] not in placed_ids]
     return DraftBuildResponse(drafts=drafts, unplacedTaskIds=unplaced)
@@ -112,7 +112,7 @@ def calendar_drafts(req: DraftBuildRequest, calendar: CalendarClient | None = De
 
 @app.post("/v1/calendar/execute", response_model=ExecuteResponse)
 def calendar_execute(req: ExecuteRequest):
-    """执行用户已确认的草稿：幂等复检 → 冲突复检 → CREATE → Verify。v1 仅 create。"""
+    """执行用户已确认的草稿：幂等复检 → 冲突复检（Instant）→ CREATE（UTC Z）→ Verify（Instant）。"""
     provider = IcsWriteProvider()
     if not provider.path:
         raise AgentError("CAL_AUTH_INVALID", "未配置 CAL_ICS_PATH（写目标缺失）", status_code=503, retryable=False)

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { formatInZone } from "@/lib/time";
 import type { Envelope } from "@/lib/types";
 
 interface DraftRow {
@@ -9,6 +10,7 @@ interface DraftRow {
   taskTitle: string;
   proposedStart: string;
   proposedEnd: string;
+  timezone?: string | null;
   status: string;
   reason?: string | null;
 }
@@ -29,9 +31,9 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "已取消",
 };
 
-function fmt(dt: string): string {
-  const d = new Date(dt);
-  return d.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+/** 按草稿自身时区显示（无时区标记的存量按默认），Instant 不做任何墙钟转换 */
+function fmt(dt: string, tz?: string | null): string {
+  return formatInZone(dt, tz || "Asia/Shanghai");
 }
 
 function durationMin(start: string, end: string): number {
@@ -147,7 +149,7 @@ export function CalendarPanel({ goalId }: { goalId: string }) {
             <li key={d.id} className="flex items-center justify-between rounded-md border px-2 py-1 text-xs">
               <span className="font-medium">{d.taskTitle}</span>
               <span className="text-muted-foreground">
-                {fmt(d.proposedStart)} – {fmt(d.proposedEnd).split(" ")[1] ?? ""} · {durationMin(d.proposedStart, d.proposedEnd)} 分钟
+                {fmt(d.proposedStart, d.timezone)} – {fmt(d.proposedEnd, d.timezone)} · {durationMin(d.proposedStart, d.proposedEnd)} 分钟
               </span>
             </li>
           ))}
@@ -160,7 +162,7 @@ export function CalendarPanel({ goalId }: { goalId: string }) {
             .map((d) => (
               <li key={d.id} className="flex items-center justify-between text-muted-foreground">
                 <span>
-                  {STATUS_LABEL[d.status] ?? d.status} · {d.taskTitle}（{fmt(d.proposedStart)}）
+                  {STATUS_LABEL[d.status] ?? d.status} · {d.taskTitle}（{fmt(d.proposedStart, d.timezone)}）
                 </span>
                 <span className="text-[11px]">{d.status === "stale_conflict" ? "需重新生成草稿" : ""}</span>
               </li>

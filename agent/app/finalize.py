@@ -10,6 +10,11 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, timedelta
 
+from .times import today_in
+
+PLANNING_TZ_ENV = "LIFEOS_USER_TZ"
+DEFAULT_PLANNING_TZ = "Asia/Shanghai"
+
 CONSTRAINTS_SPEC_VERSION = "1"
 CAPACITY_PER_DAY = 480
 DAY_MS = 86400000
@@ -31,7 +36,9 @@ def _to_str(ms: float) -> str:
 
 
 def _today() -> str:
-    return date.today().isoformat()
+    import os
+
+    return today_in(os.environ.get(PLANNING_TZ_ENV, DEFAULT_PLANNING_TZ)).isoformat()
 
 
 # ---------------------------------------------------------------- 依赖（镜像 sanitizeDependencies）

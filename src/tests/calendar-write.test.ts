@@ -47,8 +47,9 @@ beforeAll(async () => {
           .map((t: { taskId: string; title: string; estMinutes: number }, i: number) => ({
             taskId: t.taskId,
             taskTitle: t.title,
-            proposedStart: `2026-09-1${i}T09:00:00`,
-            proposedEnd: `2026-09-1${i}T${String(9 + Math.floor(t.estMinutes / 60)).padStart(2, "0")}:${String(t.estMinutes % 60).padStart(2, "0")}:00`,
+            startUtc: `2027-03-1${i}T01:00:00Z`, // Instant（UTC Z）
+            endUtc: `2027-03-1${i}T${String(1 + Math.floor(t.estMinutes / 60)).padStart(2, "0")}:${String(t.estMinutes % 60).padStart(2, "0")}:00Z`,
+            timezone: body.timezone ?? "Asia/Shanghai",
             calendarId: "primary",
             actionType: "create",
             reason: "测试排期",

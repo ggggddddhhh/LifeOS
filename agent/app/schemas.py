@@ -156,11 +156,17 @@ class ProgressReport(BaseModel):
 # ---------------------------------------------------------------- Phase 5：Calendar 只读工具
 
 class CalendarEvent(BaseModel):
-    """Calendar 观察事实（原始事件，截断保留）。"""
+    """Calendar 观察事实（原始事件）。时间为 Instant（UTC）+ 事件自身时区；
+    all-day 事件保持 LocalDate 语义（localDate），不用 00:00 模拟。"""
     title: str
-    start: str  # ISO
-    end: str  # ISO
+    startUtc: str  # ISO-8601 Z
+    endUtc: str  # ISO-8601 Z
+    timezone: str = ""  # 事件解析所用 IANA 时区（浮动时间 = 规划时区）
     all_day: bool = False
+    local_date: str | None = None  # all-day 的日期语义 YYYY-MM-DD
+    source: str = "user"  # user | lifeos（UID 前缀识别）
+    ambiguous: bool = False  # DST 回拨重复墙钟（已按 fold=0 处理并标记）
+    nonexistent: bool = False  # DST 跳变空洞墙钟（已前移并标记）
 
 
 class DayBusy(BaseModel):
@@ -207,21 +213,26 @@ class CapacityReport(BaseModel):
 # ---------------------------------------------------------------- Phase 7：Calendar 写入（确认制）
 
 class CalendarDraftItem(BaseModel):
-    """日历写入提案（未落日历；只有用户确认后才执行）。"""
+    """日历写入提案（未落日历；只有用户确认后才执行）。
+    startUtc/endUtc = Instant；timezone = 规划时区（IANA）。"""
     taskId: str
     taskTitle: str
-    proposedStart: str  # ISO datetime（局部时区）
-    proposedEnd: str
+    startUtc: str
+    endUtc: str
+    timezone: str  # IANA
     calendarId: str = "primary"
     actionType: str = "create"  # v1 仅 create
     reason: str | None = None
     idempotencyKey: str  # goalId:planVersion:taskId:occurrence
+    ambiguous: bool = False
+    nonexistent: bool = False
 
 
 class DraftBuildRequest(BaseModel):
     goalId: str
     planVersion: int
     daysLeft: int = Field(ge=1, le=3650)
+    timezone: str = "Asia/Shanghai"  # 规划时区（IANA）
     tasks: list[dict] = Field(min_length=1)  # [{taskId,title,estMinutes,priority,status?,durationDays?}]
 
 
@@ -233,6 +244,7 @@ class DraftBuildResponse(BaseModel):
 class ExecuteRequest(BaseModel):
     goalId: str
     planVersion: int
+    timezone: str = "Asia/Shanghai"
     drafts: list[CalendarDraftItem] = Field(min_length=1)  # 仅由确认流程传入
     tasks: list[dict] = Field(min_length=1)  # 校验用（taskId→est）
 

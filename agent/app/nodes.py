@@ -8,6 +8,7 @@ import re
 from typing import Any, TypedDict
 
 from .errors import AGENT_PARSE_ERROR, AGENT_VALIDATION_ERROR, AgentError
+from .times import today_in
 from .calendar import CalendarClient, analyze_capacity
 from .github import GithubClient, analyze_progress, extract_repo
 from .llm import LLM
@@ -50,7 +51,9 @@ def _days_left(deadline: str | None, fallback: int = 14) -> int:
         from datetime import date
 
         target = date.fromisoformat(deadline[:10])
-        return max(1, (target - date.today()).days)
+        import os
+
+        return max(1, (target - today_in(os.environ.get("LIFEOS_USER_TZ", "Asia/Shanghai"))).days)
     except ValueError:
         return fallback
 
@@ -117,8 +120,11 @@ def make_calendar_tool_node(calendar: CalendarClient | None):
         facts = None
         if calendar is not None:
             try:
+                import os
+
+                tz = os.environ.get("LIFEOS_USER_TZ", "Asia/Shanghai")
                 window = max(7, min(30, days_left))  # 观测窗口 7~30 天
-                facts = calendar.fetch_facts(window)
+                facts = calendar.fetch_facts(window, tz)
             except Exception as e:  # noqa: BLE001 —— 工具失败绝不扩散为 graph 失败
                 from .schemas import CalendarFacts
 
@@ -170,9 +176,9 @@ def make_replan_node(llm: LLM):
 
 
 def _today() -> str:
-    from datetime import date
+    import os
 
-    return date.today().isoformat()
+    return today_in(os.environ.get("LIFEOS_USER_TZ", "Asia/Shanghai")).isoformat()
 
 
 # ---------------------------------------------------------------- Validate（确定性 + 有限重试）

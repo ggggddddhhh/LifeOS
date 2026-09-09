@@ -1,9 +1,8 @@
-"""Calendar 只读工具（Phase 5）。
+"""Calendar 只读工具（Phase 5 起；Phase 7.5 升级为 Instant + IANA 时区语义）。
 
 - 只读取（ICS 文件解析，v1 真实数据源），绝不创建/修改/删除事件
-- 与 GitHub 工具解耦：独立模块 + 依赖注入，Graph 可独立启用任一工具
-- 任何失败转为 ok=False 事实对象，graph 永不因工具失败而失败
-- 容量三层语义：用户声明 > Calendar 推断 > 默认 480/天；声明与推断冲突显式标注
+- ICS TZID 解析与 canonical 转换见 times.py（唯一实现点）
+- DayBusy 按规划时区日历日统计；all-day 保持 LocalDate 语义
 """
 
 from __future__ import annotations
@@ -19,68 +18,78 @@ from .schemas import (
     CapacityReport,
     DayBusy,
 )
+from .times import (
+    DEFAULT_PLANNING_TZ,
+    overlaps,
+    parse_ics_dtstart,
+    today_in,
+    to_utc,
+    wall_in_tz,
+    WallToInstant,
+    work_window,
+    _unfold_lines,
+)
 
-# Agent 推断参数：每日总可支配窗口（清醒时间扣除必要事务的保守估计）。
-# available_inferred = max(0, daily_window − busy)。非用户声明，仅推断。
+# Agent 推断参数：每日总可支配窗口（墙钟分钟数，规划时区）
 DEFAULT_DAILY_WINDOW_MINUTES = 720
-DEFAULT_CAPACITY_PER_DAY = 480  # 无任何数据时的系统默认（与 TS plan.ts 一致）
-CONFLICT_TOLERANCE_MINUTES = 60  # 声明超出推断该值以上视为冲突
+DEFAULT_CAPACITY_PER_DAY = 480
+CONFLICT_TOLERANCE_MINUTES = 60
 
 
 class CalendarClient(Protocol):
-    def fetch_facts(self, days: int) -> CalendarFacts: ...
+    def fetch_facts(self, days: int, timezone: str = DEFAULT_PLANNING_TZ) -> CalendarFacts: ...
 
 
-# ---------------------------------------------------------------- ICS 解析（只读，无第三方依赖）
+class _VEvent:
+    __slots__ = ("uid", "title", "dtstart", "dtend", "tzid", "all_day")
 
-def _unfold_ics(text: str) -> list[str]:
-    lines: list[str] = []
-    for raw in text.replace("\r\n", "\n").split("\n"):
-        if raw.startswith((" ", "\t")) and lines:
-            lines[-1] += raw[1:].lstrip()
-        else:
-            lines.append(raw)
-    return lines
-
-
-def _parse_ics_dt(value: str) -> datetime | None:
-    v = value.strip()
-    try:
-        if len(v) == 8:  # YYYYMMDD（全天事件）
-            return datetime.strptime(v, "%Y%m%d")
-        if "T" in v:
-            core = v.split("T")[1].rstrip("Z")
-            dt = datetime.strptime(f"{v.split('T')[0]}T{core}", "%Y%m%dT%H%M%S")
-            return dt
-        return datetime.strptime(v, "%Y%m%d")
-    except ValueError:
-        return None
+    def __init__(self):
+        self.uid = ""
+        self.title = ""
+        self.dtstart = ""
+        self.dtend = ""
+        self.tzid = ""
+        self.all_day = False
 
 
-def parse_ics(text: str) -> list[tuple[str, datetime, datetime, bool]]:
-    """返回 [(title, start, end, all_day)]。all_day = DTSTART 为纯日期（YYYYMMDD）。"""
-    events: list[tuple[str, datetime, datetime, bool]] = []
-    title, start, end, all_day = None, None, None, False
-    in_event = False
-    for line in _unfold_ics(text):
+def _parse_vevents(text: str) -> list[_VEvent]:
+    events: list[_VEvent] = []
+    cur: _VEvent | None = None
+    for line in _unfold_lines(text):
         if line.startswith("BEGIN:VEVENT"):
-            in_event, title, start, end, all_day = True, None, None, None, False
+            cur = _VEvent()
         elif line.startswith("END:VEVENT"):
-            if in_event and start is not None:
-                e = end or (start + timedelta(days=1) if all_day else start)
-                events.append((title or "(无标题)", start, e, all_day))
-            in_event = False
-        elif in_event and ":" in line:
-            key, value = line.split(":", 1)
-            key = key.split(";")[0]
+            if cur is not None and cur.dtstart:
+                events.append(cur)
+            cur = None
+        elif cur is not None and ":" in line:
+            head, value = line.split(":", 1)
+            key = head.split(";")[0]
+            params = head.split(";")[1:]
             if key == "SUMMARY":
-                title = value.strip()
+                cur.title = value.strip()
+            elif key == "UID":
+                cur.uid = value.strip()
             elif key == "DTSTART":
-                all_day = len(value.strip()) == 8
-                start = _parse_ics_dt(value)
+                cur.dtstart = value
+                cur.all_day = any(p.startswith("VALUE=DATE") for p in params)
+                cur.tzid = next((p.split("=", 1)[1] for p in params if p.startswith("TZID=")), "")
             elif key == "DTEND":
-                end = _parse_ics_dt(value)
+                cur.dtend = value
     return events
+
+
+def _event_minutes_on_day(ev: CalendarEvent, day: date, tz_name: str) -> int:
+    """事件在规划时区某日占用的墙钟分钟（跨天按日切分）；all-day = 整日阻塞。"""
+    if ev.all_day:
+        return ev.local_date == day.isoformat()
+    s = datetime.fromisoformat(ev.startUtc)
+    e = datetime.fromisoformat(ev.endUtc)
+    ws, we = work_window(day)
+    ws_utc = to_utc(ws, tz_name).instant
+    we_utc = to_utc(we, tz_name).instant
+    ov = min(e, we_utc) - max(s, ws_utc)
+    return max(0, int(ov.total_seconds() // 60))
 
 
 class IcsCalendarClient:
@@ -90,60 +99,90 @@ class IcsCalendarClient:
         self.path = path or os.environ.get("CAL_ICS_PATH", "")
         self.daily_window = daily_window_minutes or int(os.environ.get("CAL_DAILY_WINDOW_MINUTES", DEFAULT_DAILY_WINDOW_MINUTES))
 
-    def fetch_facts(self, days: int) -> CalendarFacts:
+    def fetch_facts(self, days: int, timezone: str = DEFAULT_PLANNING_TZ) -> CalendarFacts:
         fetched_at = datetime.now().astimezone().isoformat(timespec="seconds")
         try:
             with open(self.path, encoding="utf-8") as f:
-                raw = parse_ics(f.read())
+                raw = _parse_vevents(f.read())
         except OSError as e:
             return CalendarFacts(ok=False, error=f"{type(e).__name__}: {e}", window_days=days, fetched_at=fetched_at)
 
-        today = date.today()
-        window = [today + timedelta(days=i) for i in range(days)]
-        by_date: dict[date, DayBusy] = {d: DayBusy(date=d.isoformat()) for d in window}
-        kept_events: list[CalendarEvent] = []
-        for title, start, end, all_day in raw:
-            # 逐日切分忙碌分钟（跨天事件按天摊）
-            cur = start
-            while cur < end and cur.date() <= window[-1]:
-                d = cur.date()
-                if d in by_date:
-                    day_end = min(end, datetime.combine(d, datetime.max.time()))
-                    minutes = max(0, round((day_end - cur).total_seconds() / 60))
-                    db = by_date[d]
-                    if all_day:
-                        db.all_day_event = True
-                        db.busy_minutes = self.daily_window  # 全天事件占满推断窗口
-                    else:
-                        db.busy_minutes += min(minutes, self.daily_window)
-                    db.event_count += 1
-                    kept_events.append(CalendarEvent(
-                        title=title, start=start.isoformat(), end=end.isoformat(), all_day=all_day,
-                    ))
-                cur = datetime.combine(d + timedelta(days=1), datetime.min.time())
-            if len(kept_events) >= 100:
+        events: list[CalendarEvent] = []
+        for ve in raw:
+            source = "lifeos" if ve.uid.startswith("lifeos-") else "user"
+            try:
+                start = parse_ics_dtstart(ve.dtstart, ve.tzid or None, timezone)
+            except ValueError:
+                continue
+            if isinstance(start, str):
+                # all-day：LocalDate 语义，不转 Instant（存储用当日窗口 Instant 占位以便统一处理）
+                events.append(CalendarEvent(
+                    title=ve.title or "(无标题)", startUtc="", endUtc="", timezone=timezone,
+                    all_day=True, local_date=start, source=source,
+                ))
+                continue
+            end_wall = WallToInstant(instant=start.instant)
+            if ve.dtend:
+                try:
+                    parsed_end = parse_ics_dtstart(ve.dtend, ve.tzid or None, timezone)
+                    if isinstance(parsed_end, WallToInstant):
+                        end_wall = parsed_end
+                except ValueError:
+                    pass
+            if end_wall.instant <= start.instant:
+                end_wall = WallToInstant(instant=start.instant + timedelta(hours=1))
+            events.append(CalendarEvent(
+                title=ve.title or "(无标题)",
+                startUtc=start.instant.isoformat(timespec="seconds").replace("+00:00", "Z"),
+                endUtc=end_wall.instant.isoformat(timespec="seconds").replace("+00:00", "Z"),
+                timezone=ve.tzid or timezone,
+                source=source,
+                ambiguous=start.ambiguous or end_wall.ambiguous,
+                nonexistent=start.nonexistent or end_wall.nonexistent,
+            ))
+            if len(events) >= 100:
                 break
+
+        # DayBusy：规划时区日历日
+        base = today_in(timezone)
+        window_days = [base + timedelta(days=i) for i in range(days)]
+        by_date = {d: DayBusy(date=d.isoformat()) for d in window_days}
+        for ev in events:
+            if ev.all_day:
+                if ev.local_date and date.fromisoformat(ev.local_date) in by_date:
+                    db = by_date[date.fromisoformat(ev.local_date)]
+                    db.all_day_event = True
+                    db.busy_minutes = self.daily_window
+                    db.event_count += 1
+                continue
+            s = datetime.fromisoformat(ev.startUtc)
+            for d in window_days:
+                minutes = _event_minutes_on_day(ev, d, timezone)
+                if minutes > 0:
+                    by_date[d].busy_minutes += minutes
+                    by_date[d].event_count += 1
+
         return CalendarFacts(
             ok=True,
-            days=[by_date[d] for d in window],
-            events=kept_events[:50],
+            days=[by_date[d] for d in window_days],
+            events=events[:50],
             window_days=days,
             fetched_at=fetched_at,
         )
 
 
 class StaticCalendarClient:
-    """测试/评测注入：直接给定 DayBusy 列表。"""
+    """测试/评测注入：直接给定 DayBusy 列表（日级，用于容量分析）。"""
 
     def __init__(self, days: list[DayBusy], daily_window_minutes: int = DEFAULT_DAILY_WINDOW_MINUTES):
         self._days = days
         self.daily_window = daily_window_minutes
 
-    def fetch_facts(self, days: int) -> CalendarFacts:
+    def fetch_facts(self, days: int, timezone: str = DEFAULT_PLANNING_TZ) -> CalendarFacts:
         padded = self._days[:days]
-        last_date = date.fromisoformat(padded[-1].date) if padded else date.today()
+        last_date = date.fromisoformat(padded[-1].date) if padded else today_in(timezone)
         avg_busy = round(sum(d.busy_minutes for d in padded) / max(1, len(padded)))
-        while len(padded) < days:  # 窗口外天数按观测均值补齐
+        while len(padded) < days:
             last_date = last_date + timedelta(days=1)
             padded.append(DayBusy(date=last_date.isoformat(), busy_minutes=avg_busy))
         return CalendarFacts(
@@ -170,7 +209,7 @@ def analyze_capacity(
 
     if facts is not None and facts.ok and facts.days:
         inferred = [max(0, daily_window_minutes - d.busy_minutes) for d in facts.days[:days_left]]
-        while len(inferred) < days_left:  # 窗口外按均值补
+        while len(inferred) < days_left:
             avg = round(sum(inferred) / max(1, len(inferred)))
             inferred.append(avg)
         busy_days = [d for d in facts.days[:days_left] if d.busy_minutes > 0]
@@ -181,10 +220,12 @@ def analyze_capacity(
         full = [d for d in facts.days[:days_left] if d.all_day_event]
         if full:
             signals.append(f"全天事件日（推断可用 0 分钟）: {'、'.join(d.date for d in full[:5])}")
+        amb = [e for e in facts.events if e.ambiguous or e.nonexistent]
+        if amb:
+            signals.append(f"{len(amb)} 个事件的本地时间处于 DST 边界（已按 canonical 规则处理并标记）")
     elif facts is not None and not facts.ok:
         signals.append(f"日历数据不可用: {facts.error or '未知'}")
 
-    # 有效容量合成
     if has_declared and inferred is not None:
         effective = [declared[i] if i < len(declared) else declared[-1] for i in range(days_left)]
         source = "declared+calendar"
@@ -197,14 +238,13 @@ def analyze_capacity(
     else:
         return CapacityReport(available=False, source="default", signals=signals)
 
-    # 冲突检测：声明显著超出推断 → 显式标注（保留声明优先级，但暴露风险）
     conflicts: list[CapacityConflict] = []
     if has_declared and inferred is not None:
         for i in range(days_left):
             dec = effective[i]
             inf = inferred[i]
             if dec > inf + CONFLICT_TOLERANCE_MINUTES:
-                dt = (date.today() + timedelta(days=i)).isoformat()
+                dt = (today_in(DEFAULT_PLANNING_TZ) + timedelta(days=i)).isoformat()
                 conflicts.append(CapacityConflict(
                     day_index=i + 1, date=dt, declared_minutes=dec, inferred_minutes=inf,
                     note=f"第 {i + 1} 天用户声明可投入 {dec} 分钟，但日历推断仅 {inf} 分钟（忙碌 {daily_window_minutes - inf} 分钟）",

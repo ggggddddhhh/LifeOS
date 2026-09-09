@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { executeCalendarDrafts, type ExecuteResultItem } from "@/lib/agent/calendar";
+import { DEFAULT_USER_TZ } from "@/lib/time";
 import type { CalendarDraftItem } from "@/lib/types";
 
-/** 本地墙钟字符串（YYYY-MM-DDTHH:mm:ss，无时区后缀）——与 Python Draft Builder/ICS 的 naive 本地语义一致。
- *  绝不能用 toISOString()：会转 UTC，跨时区比较必然漂移。 */
-function localWallClock(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
+/** 本地墙钟已废除（Phase 7.5）：Instant 直接以 ISO Z 传输，墙钟转换只在 Python。 */
 
 /**
  * POST /api/goals/:id/calendar/confirm —— 用户确认后执行写入。
@@ -50,8 +46,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         toExecute.push({
           taskId: d.taskId,
           taskTitle: d.taskTitle,
-          proposedStart: localWallClock(d.proposedStart),
-          proposedEnd: localWallClock(d.proposedEnd),
+          startUtc: d.proposedStart.toISOString(), // Instant（UTC Z）
+          endUtc: d.proposedEnd.toISOString(),
+          timezone: d.timezone ?? DEFAULT_USER_TZ,
           calendarId: d.calendarId,
           actionType: "create",
           reason: d.reason,
@@ -70,6 +67,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       const executed = await executeCalendarDrafts({
         goalId: id,
         planVersion: goal.revision,
+        timezone: DEFAULT_USER_TZ,
         drafts: toExecute,
         tasks: [...new Set(toExecute.map((d) => d.taskId))].map((tid) => ({
           taskId: tid,

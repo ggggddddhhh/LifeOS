@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildCalendarDrafts } from "@/lib/agent/calendar";
+import { DEFAULT_USER_TZ } from "@/lib/time";
 
 /** POST /api/goals/:id/calendar/drafts —— 生成日历草稿（pending_confirmation，永不写日历） */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -45,6 +46,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       goalId: id,
       planVersion: goal.revision,
       daysLeft,
+      timezone: DEFAULT_USER_TZ,
       tasks: draftable.map((t) => ({
         taskId: t.id,
         title: t.title,
@@ -62,8 +64,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
           planVersion: goal.revision,
           taskId: d.taskId,
           taskTitle: d.taskTitle,
-          proposedStart: new Date(d.proposedStart),
-          proposedEnd: new Date(d.proposedEnd),
+          proposedStart: new Date(d.startUtc), // Instant 存储（Prisma DateTime = UTC ms）
+          proposedEnd: new Date(d.endUtc),
+          timezone: d.timezone, // 时区语义显式持久化（存量迁移见 scripts/migrate-tz.mjs）
           calendarId: d.calendarId,
           actionType: d.actionType,
           reason: d.reason ?? null,

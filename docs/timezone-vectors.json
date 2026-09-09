@@ -1,0 +1,13 @@
+{
+  "specVersion": "1",
+  "description": "Phase 7.5 共享时间向量：canonical 转换规则（fold=0 / gap 前移）的唯一事实源。Python(times.py) 断言转换与标记；TS(time.ts) 断言 Instant→墙钟显示互逆（同一期望值）。",
+  "cases": [
+    {"name":"shanghai_normal","tz":"Asia/Shanghai","wall":"2027-03-10T09:00:00","expectInstant":"2027-03-10T01:00:00+00:00","expectAmbiguous":false,"expectNonexistent":false,"expectRoundtripWall":"2027-03-10T09:00:00"},
+    {"name":"tokyo_user_la_server","tz":"Asia/Tokyo","wall":"2027-03-10T09:00:00","expectInstant":"2027-03-10T00:00:00+00:00","expectAmbiguous":false,"expectNonexistent":false,"expectRoundtripWall":"2027-03-10T09:00:00"},
+    {"name":"ny_dst_start_morning","tz":"America/New_York","wall":"2027-03-14T09:00:00","expectInstant":"2027-03-14T13:00:00+00:00","expectAmbiguous":false,"expectNonexistent":false,"expectRoundtripWall":"2027-03-14T09:00:00"},
+    {"name":"ny_ambiguous_0130","tz":"America/New_York","wall":"2027-11-07T01:30:00","expectInstant":"2027-11-07T05:30:00+00:00","expectAmbiguous":true,"expectNonexistent":false,"expectRoundtripWall":"2027-11-07T01:30:00"},
+    {"name":"ny_nonexistent_0230","tz":"America/New_York","wall":"2027-03-14T02:30:00","expectInstant":"2027-03-14T07:30:00+00:00","expectAmbiguous":false,"expectNonexistent":true,"expectAdjustedWall":"2027-03-14T03:30:00","expectRoundtripWall":"2027-03-14T03:30:00"},
+    {"name":"cross_midnight","tz":"Asia/Shanghai","wall":"2027-03-10T23:30:00","expectInstant":"2027-03-10T15:30:00+00:00","expectAmbiguous":false,"expectNonexistent":false,"expectRoundtripWall":"2027-03-10T23:30:00"},
+    {"name":"london_ambiguous_0130","tz":"Europe/London","wall":"2027-10-31T01:30:00","expectInstant":"2027-10-31T00:30:00+00:00","expectAmbiguous":true,"expectNonexistent":false,"expectRoundtripWall":"2027-10-31T01:30:00"}
+  ]
+}

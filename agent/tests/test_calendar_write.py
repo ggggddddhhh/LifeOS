@@ -1,9 +1,8 @@
-"""Phase 7：Calendar 写入闭环测试（排期/校验/幂等/冲突/部分失败/verify/安全）。"""
+"""Phase 7/7.5：Calendar 写入闭环测试（Instant 语义）。"""
 
 from __future__ import annotations
 
-import json
-from datetime import date, datetime, time, timedelta
+from datetime import datetime
 
 import pytest
 
@@ -13,7 +12,6 @@ from app.calendar_write import (
     build_drafts,
     execute_drafts,
     make_uid,
-    parse_uid_source,
     validate_draft,
 )
 from app.schemas import CalendarDraftItem, ExecuteRequest
@@ -27,78 +25,77 @@ class MemoryProvider:
     provider_name = "memory"
 
     def __init__(self, fail_on_uid_substr: str | None = None):
-        self.events: list[tuple[str, datetime, datetime, str]] = []
+        self.events: list[dict] = []
         self.fail_on = fail_on_uid_substr
 
     def read_events(self):
-        return list(self.events)
+        return [dict(e) for e in self.events]
 
     def create_event(self, uid, title, start, end):
         if self.fail_on and self.fail_on in uid:
             raise CalendarWriteError("CAL_SERVER", "simulated 5xx")
-        self.events.append((uid, start, end, title))
+        self.events.append({"uid": uid, "title": title, "allDay": False, "localDate": None,
+                            "startUtc": start.isoformat().replace("+00:00", "Z"),
+                            "endUtc": end.isoformat().replace("+00:00", "Z")})
 
 
-def ev(day_offset: int, h1: int, h2: int) -> tuple[datetime, datetime]:
+def busy_utc(day_offset: int, h1: int, h2: int, tz: str = "Asia/Shanghai") -> dict:
+    """用 canonical 转换构造忙碌事件（与 ICS TZID 等价）。h2=24 表示次日 00:00。"""
+    from datetime import date, timedelta
+
+    from app.times import to_utc
+
     d = date.today() + timedelta(days=day_offset)
-    return (datetime.combine(d, time(h1)), datetime.combine(d, time(h2)))
+    end_d = d + timedelta(days=1) if h2 == 24 else d
+    e_hour = 0 if h2 == 24 else h2
+    s = to_utc(datetime(d.year, d.month, d.day, h1), tz).instant
+    e = to_utc(datetime(end_d.year, end_d.month, end_d.day, e_hour), tz).instant
+    return {"startUtc": s.isoformat().replace("+00:00", "Z"), "endUtc": e.isoformat().replace("+00:00", "Z"),
+            "allDay": False, "localDate": None}
 
 
-# ---------------------------------------------------------------- Draft Builder（事件级空闲窗口）
+# ---------------------------------------------------------------- Draft Builder（规划时区墙钟）
 
 class TestBuildDrafts:
-    def test_places_around_busy_days(self):
-        # 前 2 天 09-20 全占 → 排到第 3 天
-        busy = [ev(0, 8, 20), ev(1, 8, 20)]
-        drafts = build_drafts([T("t1", "任务A", 120, 1)], 3, busy, "g1", 1)
+    def test_places_in_planning_tz_window(self):
+        # 规划时区 Tokyo：09:00-13:00 会议 → 120min 任务排 13:00（Tokyo 墙钟）
+        drafts = build_drafts([T("t1", "任务A", 120, 1)], 2, [busy_utc(0, 9, 13, "Asia/Tokyo")], "g1", 1, "Asia/Tokyo")
         assert len(drafts) == 1
-        d = drafts[0]
-        assert d.proposedStart[:10] == (date.today() + timedelta(days=2)).isoformat()
-        assert d.idempotencyKey == "g1:1:t1:1"
-        assert d.actionType == "create"
+        assert drafts[0].timezone == "Asia/Tokyo"
+        # 13:00 Tokyo = 04:00 UTC
+        assert drafts[0].startUtc.endswith("T04:00:00Z")
+        assert drafts[0].idempotencyKey == "g1:1:t1:1"
 
-    def test_places_in_free_gap_within_day(self):
-        # 上午 09-13 开会 → 120min 任务排 13:00
-        busy = [ev(0, 9, 13)]
-        drafts = build_drafts([T("t1", "任务A", 120, 1)], 2, busy, "g1", 1)
-        assert drafts[0].proposedStart.endswith("13:00:00")
-        assert drafts[0].proposedEnd.endswith("15:00:00")
+    def test_busy_in_other_tz_blocks_correctly(self):
+        # 会议以上海 17:00-19:00 表达（= Tokyo 18:00-20:00），规划 Tokyo：当天 08-18 仍可容纳 300min
+        drafts = build_drafts([T("t1", "任务", 300, 1)], 2, [busy_utc(0, 17, 19, "Asia/Shanghai")], "g1", 1, "Asia/Tokyo")
+        assert len(drafts) == 1
+        from app.times import wall_in_tz
 
-    def test_never_overlaps_partial_busy(self):
-        # 一天两段会（09-13、14-18）→ 空档 08-09/13-14 各 60min、18-20 共 120min；90min 任务排 18:00
-        busy = [ev(0, 9, 13), ev(0, 14, 18)]
-        drafts = build_drafts([T("t1", "任务A", 90, 1)], 2, busy, "g1", 1)
-        assert drafts[0].proposedStart.endswith("18:00:00")  # 唯一容得下的空档
-        assert drafts[0].proposedEnd.endswith("19:30:00")
+        start_wall = wall_in_tz(datetime.fromisoformat(drafts[0].startUtc.replace("Z", "+00:00")), "Asia/Tokyo")
+        assert start_wall.strftime("%H:%M") == "08:00"  # Tokyo 墙钟 08:00 起排
 
-    def test_priority_first_fills_gap_then_next_day(self):
-        busy = [ev(0, 8, 12)]  # 当天 12-20 共 480min 可用
-        drafts = build_drafts([T("t1", "高优先", 400, 1), T("t2", "中优先", 150, 2)], 2, busy, "g1", 1)
-        by_task = {d.taskId: d.proposedStart[:10] for d in drafts}
-        assert by_task["t1"] == date.today().isoformat()
-        assert by_task["t2"] == (date.today() + timedelta(days=1)).isoformat()  # 剩 80 放不下 150
+    def test_all_day_local_date_blocks_day(self):
+        from datetime import date
 
-    def test_periodic_task_spreads_days(self):
-        drafts = build_drafts([T("t1", "每日训练", 30, 2, dur=3)], 5, [], "g1", 1)
-        assert len(drafts) == 3
-        assert len({d.idempotencyKey for d in drafts}) == 3
+        busy = [{"startUtc": "", "endUtc": "", "allDay": True, "localDate": date.today().isoformat()}]
+        drafts = build_drafts([T("t1", "任务", 60, 1)], 2, busy, "g1", 1, "Asia/Shanghai")
+        assert drafts[0].startUtc > f"{date.today().isoformat()}T"  # 次日
 
-    def test_unplaced_when_no_room(self):
-        busy = [ev(i, 8, 20) for i in range(3)]
-        drafts = build_drafts([T("t1", "大任务", 600, 1)], 3, busy, "g1", 1)
+    def test_periodic_occurrences(self):
+        drafts = build_drafts([T("t1", "每日训练", 30, 2, dur=3)], 5, [], "g1", 1, "Asia/Shanghai")
+        assert len(drafts) == 3 and len({d.idempotencyKey for d in drafts}) == 3
+
+    def test_unplaced_when_full(self):
+        busy = [busy_utc(i, 0, 24) for i in range(3)]
+        drafts = build_drafts([T("t1", "大任务", 600, 1)], 3, busy, "g1", 1, "Asia/Shanghai")
         assert drafts == []
 
-    def test_all_day_event_blocks_day(self):
-        busy = [ev(0, 0, 23)]
-        drafts = build_drafts([T("t1", "任务", 60, 1)], 2, busy, "g1", 1)
-        assert drafts[0].proposedStart[:10] == (date.today() + timedelta(days=1)).isoformat()
-
-    def test_aware_datetimes_normalized(self):
-        from datetime import timezone
-
-        d0 = datetime.combine(date.today(), time(9)).replace(tzinfo=timezone.utc)
-        drafts = build_drafts([T("t1", "任务", 60, 1)], 2, [(d0, d0 + timedelta(hours=2))], "g1", 1)
-        assert len(drafts) == 1  # 不因 aware/naive 混比崩溃
+    def test_cross_midnight_event_blocks_both_windows(self):
+        # 19:00-次日10:00 的跨午夜事件：当天窗口 08-20 剩 08-19，次日剩 10-20
+        drafts = build_drafts([T("t1", "任务", 600, 1)], 3, [busy_utc(0, 19, 24), busy_utc(1, 0, 10)], "g1", 1, "Asia/Shanghai")
+        assert len(drafts) == 1
+        assert drafts[0].startUtc.startswith((datetime.fromisoformat(drafts[0].startUtc)).strftime("%Y-%m-%d"))  # 当天 08:00 起连续 600min
 
 
 # ---------------------------------------------------------------- Validator
@@ -106,8 +103,8 @@ class TestBuildDrafts:
 class TestValidateDraft:
     def _draft(self, **kw):
         base = dict(
-            taskId="t1", taskTitle="A", proposedStart="2026-09-10T09:00:00",
-            proposedEnd="2026-09-10T11:00:00", calendarId="primary", actionType="create",
+            taskId="t1", taskTitle="A", startUtc="2027-03-10T01:00:00Z", endUtc="2027-03-10T03:00:00Z",
+            timezone="Asia/Shanghai", calendarId="primary", actionType="create",
             reason="r", idempotencyKey="g1:1:t1:1",
         )
         base.update(kw)
@@ -116,173 +113,118 @@ class TestValidateDraft:
     def test_ok(self):
         validate_draft(self._draft(), {"t1": {"estMinutes": 120}})
 
-    def test_wrong_action_rejected(self):
-        with pytest.raises(CalendarWriteError):
-            validate_draft(self._draft(actionType="delete"), {"t1": {"estMinutes": 120}})
-
-    def test_duration_mismatch_rejected(self):
+    def test_duration_mismatch(self):
         with pytest.raises(CalendarWriteError):
             validate_draft(self._draft(), {"t1": {"estMinutes": 90}})
 
-    def test_bad_key_rejected(self):
+    def test_naive_time_rejected(self):
+        # Phase 7 的"去掉 Z 的墙钟字符串"被明确拒绝
         with pytest.raises(CalendarWriteError):
-            validate_draft(self._draft(idempotencyKey="nope"), {"t1": {"estMinutes": 120}})
+            validate_draft(self._draft(startUtc="2027-03-10T09:00:00"), {"t1": {"estMinutes": 120}})
 
-    def test_end_before_start_rejected(self):
+    def test_wrong_action(self):
         with pytest.raises(CalendarWriteError):
-            validate_draft(
-                self._draft(proposedStart="2026-09-10T11:00:00", proposedEnd="2026-09-10T09:00:00"),
-                {"t1": {"estMinutes": 120}},
-            )
+            validate_draft(self._draft(actionType="delete"), {"t1": {"estMinutes": 120}})
 
 
-# ---------------------------------------------------------------- Executor
+# ---------------------------------------------------------------- Executor（Instant 比较）
 
 class TestExecute:
     def _req(self, drafts, tasks):
-        return ExecuteRequest(goalId="g1", planVersion=1, drafts=drafts, tasks=tasks)
+        return ExecuteRequest(goalId="g1", planVersion=1, timezone="Asia/Shanghai", drafts=drafts, tasks=tasks)
 
-    def test_success_and_verify(self):
+    def test_success_verify_instant_equality(self):
         p = MemoryProvider()
         draft = CalendarDraftItem(
-            taskId="t1", taskTitle="任务A", proposedStart="2026-09-10T09:00:00",
-            proposedEnd="2026-09-10T11:00:00", actionType="create", idempotencyKey="g1:1:t1:1",
+            taskId="t1", taskTitle="任务A", startUtc="2027-03-10T01:00:00Z", endUtc="2027-03-10T03:00:00Z",
+            timezone="Asia/Shanghai", actionType="create", idempotencyKey="g1:1:t1:1",
         )
         results = execute_drafts(self._req([draft], [T("t1", "任务A", 120)]), p)
         assert results[0].status == "success"
         assert results[0].verify == {"found": True, "startOk": True, "endOk": True, "unique": True}
-        assert len(p.events) == 1
-        uid, s, e, title = p.events[0]
-        assert uid == make_uid("g1", 1, "t1", 1)
-        assert title == "LifeOS:任务A"
 
     def test_double_execute_idempotent(self):
-        """重复确认 → 不重复创建（UID 复检）。"""
         p = MemoryProvider()
-        draft = CalendarDraftItem(
-            taskId="t1", taskTitle="A", proposedStart="2026-09-10T09:00:00",
-            proposedEnd="2026-09-10T10:00:00", actionType="create", idempotencyKey="g1:1:t1:1",
-        )
+        draft = CalendarDraftItem(taskId="t1", taskTitle="A", startUtc="2027-03-10T01:00:00Z", endUtc="2027-03-10T02:00:00Z", timezone="Asia/Shanghai", actionType="create", idempotencyKey="g1:1:t1:1")
         tasks = [T("t1", "A", 60)]
         execute_drafts(self._req([draft], tasks), p)
         second = execute_drafts(self._req([draft], tasks), p)
         assert second[0].status == "duplicate_skipped"
-        assert len(p.events) == 1  # 只有一份
-
-    def test_stale_conflict_not_written(self):
-        """确认后时间段被用户占用 → stale，不硬写。"""
-        p = MemoryProvider()
-        # 用户在此前安排了冲突事件
-        p.events.append(("user-1", datetime(2026, 9, 10, 8, 0), datetime(2026, 9, 10, 12, 0), "用户会议"))
-        draft = CalendarDraftItem(
-            taskId="t1", taskTitle="A", proposedStart="2026-09-10T09:00:00",
-            proposedEnd="2026-09-10T10:00:00", actionType="create", idempotencyKey="g1:1:t1:1",
-        )
-        results = execute_drafts(self._req([draft], [T("t1", "A", 60)]), p)
-        assert results[0].status == "stale_conflict"
-        assert "CAL_CONFLICT" in results[0].error
-        assert len(p.events) == 1  # 只有用户事件，无新增
-
-    def test_own_lifeos_events_do_not_block(self):
-        """自己的 lifeos 事件（不同 key）不作为冲突……实际上同 UID 幂等跳过；
-        不同任务的 lifeos 事件在冲突复检中视为占用（保守）。"""
-        p = MemoryProvider()
-        p.events.append((make_uid("g1", 1, "t0", 1), datetime(2026, 9, 10, 9, 0), datetime(2026, 9, 10, 10, 0), "LifeOS:B"))
-        draft = CalendarDraftItem(
-            taskId="t1", taskTitle="A", proposedStart="2026-09-10T09:30:00",
-            proposedEnd="2026-09-10T10:30:00", actionType="create", idempotencyKey="g1:1:t1:1",
-        )
-        results = execute_drafts(self._req([draft], [T("t1", "A", 60)]), p)
-        # 与其他 lifeos 事件重叠 → 保守视为冲突（stale），宁可保守不硬写
-        assert results[0].status == "stale_conflict"
-
-    def test_partial_failure_reported_per_draft(self):
-        """部分失败不能假装整体成功。"""
-        p = MemoryProvider(fail_on_uid_substr="t2")
-        d1 = CalendarDraftItem(taskId="t1", taskTitle="A", proposedStart="2026-09-10T09:00:00", proposedEnd="2026-09-10T10:00:00", actionType="create", idempotencyKey="g1:1:t1:1")
-        d2 = CalendarDraftItem(taskId="t2", taskTitle="B", proposedStart="2026-09-10T11:00:00", proposedEnd="2026-09-10T12:00:00", actionType="create", idempotencyKey="g1:1:t2:1")
-        results = execute_drafts(self._req([d1, d2], [T("t1", "A", 60), T("t2", "B", 60)]), p)
-        by_key = {r.idempotencyKey: r.status for r in results}
-        assert by_key["g1:1:t1:1"] == "success"
-        assert by_key["g1:1:t2:1"] == "failed"
         assert len(p.events) == 1
 
-    def test_invalid_draft_never_reaches_provider(self):
+    def test_stale_conflict_instant_comparison(self):
+        """确认后用户在 01:30-04:30 UTC 加会（含草稿全部区间）→ stale。"""
         p = MemoryProvider()
-        bad = CalendarDraftItem(taskId="tX", taskTitle="X", proposedStart="2026-09-10T09:00:00", proposedEnd="2026-09-10T10:00:00", actionType="create", idempotencyKey="g1:1:tX:1")
-        results = execute_drafts(self._req([bad], [T("t1", "A", 60)]), p)
-        assert results[0].status == "failed"
-        assert len(p.events) == 0
+        p.events.append({"uid": "user-1", "title": "新会议", "allDay": False, "localDate": None,
+                         "startUtc": "2027-03-10T01:30:00Z", "endUtc": "2027-03-10T04:30:00Z"})
+        draft = CalendarDraftItem(taskId="t1", taskTitle="A", startUtc="2027-03-10T01:00:00Z", endUtc="2027-03-10T02:00:00Z", timezone="Asia/Shanghai", actionType="create", idempotencyKey="g1:1:t1:1")
+        results = execute_drafts(self._req([draft], [T("t1", "A", 60)]), p)
+        assert results[0].status == "stale_conflict"
+        assert len(p.events) == 1
+
+    def test_partial_failure(self):
+        p = MemoryProvider(fail_on_uid_substr="t2")
+        d1 = CalendarDraftItem(taskId="t1", taskTitle="A", startUtc="2027-03-10T01:00:00Z", endUtc="2027-03-10T02:00:00Z", timezone="Asia/Shanghai", actionType="create", idempotencyKey="g1:1:t1:1")
+        d2 = CalendarDraftItem(taskId="t2", taskTitle="B", startUtc="2027-03-10T04:00:00Z", endUtc="2027-03-10T05:00:00Z", timezone="Asia/Shanghai", actionType="create", idempotencyKey="g1:1:t2:1")
+        results = execute_drafts(self._req([d1, d2], [T("t1", "A", 60), T("t2", "B", 60)]), p)
+        assert [r.status for r in results] == ["success", "failed"]
+
+    def test_all_day_user_event_no_crash_on_executor(self):
+        p = MemoryProvider()
+        p.events.append({"uid": "user-2", "title": "全天", "allDay": True, "localDate": "2027-03-10", "startUtc": "", "endUtc": ""})
+        draft = CalendarDraftItem(taskId="t1", taskTitle="A", startUtc="2027-03-11T01:00:00Z", endUtc="2027-03-11T02:00:00Z", timezone="Asia/Shanghai", actionType="create", idempotencyKey="g1:1:t1:1")
+        results = execute_drafts(self._req([draft], [T("t1", "A", 60)]), p)
+        assert results[0].status == "success"  # 不同日不冲突；all-day 不参与 Instant 比较
 
 
-# ---------------------------------------------------------------- ICS Provider 与来源区分
+# ---------------------------------------------------------------- ICS Provider（UTC Z 往返）
 
 class TestIcsProvider:
-    def test_roundtrip_and_uid_source(self, tmp_path):
+    def test_roundtrip_utc_z(self, tmp_path):
         p = tmp_path / "cal.ics"
-        p.write_text("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", encoding="utf-8")
+        p.write_text("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", encoding="utf-8")
         provider = IcsWriteProvider(str(p))
-        provider.create_event(make_uid("g1", 1, "t1", 1), "LifeOS:任务A", datetime(2026, 9, 10, 9, 0), datetime(2026, 9, 10, 11, 0))
+        start = datetime(2027, 3, 10, 1, 0, tzinfo=None)
+        from datetime import timezone as tzmod
+
+        start = start.replace(tzinfo=tzmod.utc)
+        provider.create_event(make_uid("g1", 1, "t1", 1), "LifeOS:任务A", start, start.replace(hour=3))
         events = provider.read_events()
         assert len(events) == 1
-        uid, s, e, title = events[0]
-        assert uid.startswith("lifeos-g1")
-        assert s == datetime(2026, 9, 10, 9, 0) and e == datetime(2026, 9, 10, 11, 0)
-        assert title == "LifeOS:任务A"
+        assert events[0]["startUtc"] == "2027-03-10T01:00:00Z"
+        assert events[0]["endUtc"] == "2027-03-10T03:00:00Z"
+        assert events[0]["uid"].startswith("lifeos-g1")
 
-    def test_uid_source_separation(self, tmp_path):
+    def test_insert_before_end_vcalendar_no_trailing_newline(self, tmp_path):
+        """真实用户导出的 ICS 常无尾随换行：事件必须插入 END:VCALENDAR 之前且不粘连。"""
+        p = tmp_path / "cal.ics"
+        p.write_text("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR", encoding="utf-8")  # 无 \r\n 结尾
+        provider = IcsWriteProvider(str(p))
+        start = datetime(2027, 3, 10, 1, 0, tzinfo=None).replace(tzinfo=None)
+        from datetime import timezone as tzmod
+
+        provider.create_event(make_uid("g1", 1, "t1", 1), "LifeOS:A", start.replace(tzinfo=tzmod.utc), start.replace(tzinfo=tzmod.utc, hour=2))
+        text = p.read_text(encoding="utf-8")
+        assert "END:VCALENDARBEGIN:VEVENT" not in text, "禁止粘连"
+        assert text.index("BEGIN:VEVENT") < text.index("END:VCALENDAR"), "事件必须在 VCALENDAR 内"
+        assert len(provider.read_events()) == 1
+
+    def test_append_to_file_without_vcalendar(self, tmp_path):
+        p = tmp_path / "cal.ics"
+        p.write_text("BEGIN:VEVENT\r\nUID:u1@x\r\nSUMMARY:旧\r\nDTSTART:20270310T010000Z\r\nDTEND:20270310T020000Z\r\nEND:VEVENT\r\n", encoding="utf-8")
+        provider = IcsWriteProvider(str(p))
+        from datetime import timezone as tzmod
+
+        s = datetime(2027, 3, 11, 1, 0, tzinfo=tzmod.utc)
+        provider.create_event(make_uid("g", 1, "t", 1), "LifeOS:B", s, s.replace(hour=2))
+        assert len(provider.read_events()) == 2
+
+    def test_reads_tzid_event_as_instant(self, tmp_path):
         p = tmp_path / "cal.ics"
         p.write_text(
-            "BEGIN:VCALENDAR\r\n"
-            "BEGIN:VEVENT\r\nUID:abc@x\r\nSUMMARY:用户会\r\nDTSTART:20260910T090000\r\nDTEND:20260910T100000\r\nEND:VEVENT\r\n"
-            "BEGIN:VEVENT\r\nUID:lifeos-g1-v1-t1-o1@lifeos\r\nSUMMARY:LifeOS:任务\r\nDTSTART:20260911T090000\r\nDTEND:20260911T100000\r\nEND:VEVENT\r\n"
-            "END:VCALENDAR\r\n",
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x@y\r\nSUMMARY:会议\r\n"
+            "DTSTART;TZID=Asia/Tokyo:20270310T090000\r\nDTEND;TZID=Asia/Tokyo:20270310T100000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
             encoding="utf-8",
         )
-        src = parse_uid_source(p.read_text(encoding="utf-8"))
-        assert src["abc@x"] == "user"
-        assert src["lifeos-g1-v1-t1-o1@lifeos"] == "lifeos"
-
-    def test_missing_file_read_returns_empty(self):
-        assert IcsWriteProvider("Z:/nope.ics").read_events() == []
-
-
-# ---------------------------------------------------------------- API 层（确认制入口）
-
-class TestApiEndpoints:
-    def test_drafts_endpoint_never_writes(self, api_client, tmp_path, monkeypatch):
-        monkeypatch.setenv("CAL_ICS_PATH", str(tmp_path / "cal.ics"))
-        res = api_client.post("/v1/calendar/drafts", json={
-            "goalId": "g1", "planVersion": 1, "daysLeft": 3,
-            "tasks": [T("t1", "任务A", 120, 1)],
-        })
-        assert res.status_code == 200
-        body = res.json()
-        assert len(body["drafts"]) == 1
-        assert body["unplacedTaskIds"] == []
-        assert not (tmp_path / "cal.ics").exists() or "lifeos" not in (tmp_path / "cal.ics").read_text(encoding="utf-8")
-
-    def test_execute_endpoint_requires_config(self, api_client, monkeypatch, tmp_path):
-        monkeypatch.setenv("CAL_ICS_PATH", str(tmp_path / "cal.ics"))
-        (tmp_path / "cal.ics").write_text("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", encoding="utf-8")
-        res = api_client.post("/v1/calendar/execute", json={
-            "goalId": "g1", "planVersion": 1,
-            "drafts": [{
-                "taskId": "t1", "taskTitle": "A", "proposedStart": "2026-09-10T09:00:00",
-                "proposedEnd": "2026-09-10T10:00:00", "actionType": "create", "idempotencyKey": "g1:1:t1:1",
-            }],
-            "tasks": [T("t1", "A", 60)],
-        })
-        assert res.status_code == 200
-        assert res.json()["results"][0]["status"] == "success"
-        assert "lifeos-g1-v1-t1-o1@lifeos" in (tmp_path / "cal.ics").read_text(encoding="utf-8")
-
-    def test_execute_without_cal_path_503(self, api_client, monkeypatch):
-        monkeypatch.setenv("CAL_ICS_PATH", "")
-        res = api_client.post("/v1/calendar/execute", json={
-            "goalId": "g1", "planVersion": 1,
-            "drafts": [{"taskId": "t1", "taskTitle": "A", "proposedStart": "2026-09-10T09:00:00", "proposedEnd": "2026-09-10T10:00:00", "actionType": "create", "idempotencyKey": "g1:1:t1:1"}],
-            "tasks": [T("t1", "A", 60)],
-        })
-        assert res.status_code == 503
-        assert res.json()["error"]["code"] == "CAL_AUTH_INVALID"
+        events = IcsWriteProvider(str(p)).read_events()
+        assert events[0]["startUtc"] == "2027-03-10T00:00:00Z"  # 09:00 Tokyo

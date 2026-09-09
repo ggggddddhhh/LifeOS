@@ -66,8 +66,9 @@ model CalendarDraft {
   planVersion    Int
   taskId         String
   taskTitle      String
-  proposedStart  DateTime
+  proposedStart  DateTime // Instant（UTC ms；Phase 7.5 起语义固定为 UTC）
   proposedEnd    DateTime
+  timezone       String? // IANA 规划时区；null = Phase 7 存量（见 scripts/migrate-tz.mjs）
   calendarId     String   @default("primary")
   actionType     String   @default("create") // v1 仅 create
   reason         String?
@@ -89,6 +90,7 @@ model CalendarWrite {
   taskId          String
   provider        String   @default("ics")
   externalEventId String? // ICS UID / provider event id
+  timezone        String?
   idempotencyKey  String   @unique
   status          String // success | failed | stale_conflict | duplicate_skipped
   error           String?
