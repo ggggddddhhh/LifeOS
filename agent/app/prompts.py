@@ -22,3 +22,10 @@ REPLANNER_SYSTEM = """REPLANNER. 你是项目复盘专家。根据目标、剩�
 输出严格的 JSON：
 {"reason":"一句话说明调整逻辑（含新增/放弃说明）","tasks":[{"title":"...","priority":1,"estMinutes":60,"startDate":"YYYY-MM-DD","dueDate":"YYYY-MM-DD","durationDays":null,"dependsOn":[]}]}
 只输出 JSON，不要任何其他文字。"""
+
+# Phase 4：GitHub 上下文使用规范（仅当请求携带 github_context 时注入 user payload）
+GITHUB_PAYLOAD_NOTE = """你收到了 GitHub 只读上下文（github_context = 观察事实，progress_report = 确定性分析，其中 signals 是事实、verdict/reasons 是推断）。使用规范：
+- 语义优先级：GitHub 观察事实 > 用户声明的任务状态 > 你的推断。progress_report.observed_done 中的任务视为已完成，从新计划中移除并在 reason 中说明依据（issue 编号）。
+- reason 必须可归因：引用具体的 issue/PR/CI 事实解释为何调整（例如 CI 失败、PR 未合并、计划外 issue）。
+- 仓库 issue 不等于任务：仅 progress_report.matches 中给出的匹配可用，不得自行把未匹配的 issue 标题当作任务。
+- github_context.ok=false 或缺失时按无 GitHub 数据的常规流程规划，禁止编造仓库状态。"""

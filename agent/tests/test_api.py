@@ -20,7 +20,8 @@ class TestHealth:
         assert body["service"] == "lifeos-agent"
         assert body["mode"] == "mock"
         assert body["promptVersion"] == "2"
-        assert body["graph"] == "analyze->plan|replan->validate->finalize"
+        assert body["graph"] == "analyze->[github_tool->progress_analysis|]plan|replan->validate->finalize"
+        assert body["tools"] == ["github(readonly)"]
         assert body["maxLlmCalls"] == 2
 
 

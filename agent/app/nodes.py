@@ -8,8 +8,9 @@ import re
 from typing import Any, TypedDict
 
 from .errors import AGENT_PARSE_ERROR, AGENT_VALIDATION_ERROR, AgentError
+from .github import GithubClient, analyze_progress, extract_repo
 from .llm import LLM
-from .prompts import PLANNER_SYSTEM, REPLANNER_SYSTEM
+from .prompts import GITHUB_PAYLOAD_NOTE, PLANNER_SYSTEM, REPLANNER_SYSTEM
 
 MAX_ATTEMPTS = 2  # Validate 失败最多重试 1 次（首次 + 重试），禁止无限循环
 CAPACITY_PER_DAY = 480
@@ -22,6 +23,9 @@ class AgentState(TypedDict, total=False):
     kind: str  # "plan" | "replan"
     request: dict[str, Any]
     analysis: dict[str, Any]
+    repo: dict[str, str] | None  # {"owner","name"}，analyze 从目标文本解析
+    github: dict[str, Any] | None  # GithubFacts.model_dump()
+    progress: dict[str, Any] | None  # ProgressReport.model_dump()
     raw_output: str
     tasks: list[dict[str, Any]]
     reason: str
@@ -30,6 +34,7 @@ class AgentState(TypedDict, total=False):
     error_code: str | None
     error_message: str | None
     llm_calls: int
+    github_calls: int
 
 
 # ---------------------------------------------------------------- Analyze（确定性）
@@ -48,6 +53,7 @@ def _days_left(deadline: str | None, fallback: int = 14) -> int:
 
 def analyze_node(state: AgentState) -> AgentState:
     req = state["request"]
+    repo = extract_repo(req.get("goalTitle") or req.get("title"), req.get("goalDescription") or req.get("description"))
     if state["kind"] == "plan":
         analysis = {"daysLeft": _days_left(req.get("deadline"))}
     else:
@@ -63,13 +69,48 @@ def analyze_node(state: AgentState) -> AgentState:
             "capacityMinutes": days_left * CAPACITY_PER_DAY,
             "overloaded": total_min > days_left * CAPACITY_PER_DAY,
         }
-    return {"analysis": analysis}
+    return {"analysis": analysis, "repo": {"owner": repo[0], "name": repo[1]} if repo else None}
+
+
+# ---------------------------------------------------------------- GitHub Tool / Progress（Phase 4）
+
+def make_github_tool_node(github: GithubClient):
+    def github_tool_node(state: AgentState) -> AgentState:
+        repo = state.get("repo")
+        if not repo:
+            return {}  # 分支保证不会进入；防御性返回
+        try:
+            facts = github.fetch_facts(repo["owner"], repo["name"])
+        except Exception as e:  # noqa: BLE001 —— 工具失败绝不扩散为 graph 失败
+            from .schemas import GithubFacts
+
+            facts = GithubFacts(ok=False, error=f"{type(e).__name__}: {e}", fetched_at=_today())
+        return {"github": facts.model_dump(), "github_calls": state.get("github_calls", 0) + 1}
+
+    return github_tool_node
+
+
+def progress_analysis_node(state: AgentState) -> AgentState:
+    from .schemas import GithubFacts
+
+    facts_dump = state.get("github")
+    if facts_dump is None:
+        return {"progress": None}  # 无仓库路径：不注入任何 GitHub 字段
+    facts = GithubFacts(**facts_dump)
+    tasks = state["request"].get("tasks", []) if state["kind"] == "replan" else []
+    report = analyze_progress(facts, tasks)
+    return {"progress": report.model_dump()}
 
 
 def _user_payload(state: AgentState) -> str:
-    """组装给 LLM 的 user 消息：请求 + 分析摘要 +（重试时的错误反馈）。"""
+    """组装给 LLM 的 user 消息：请求 + 分析摘要 +（GitHub 上下文）+（重试反馈）。
+    无仓库路径不注入任何 github 字段，payload 与 Phase 3 逐字节一致。"""
     req = dict(state["request"])
     req["analysis"] = state.get("analysis", {})
+    if state.get("github") is not None:
+        req["github_context"] = state["github"]
+        req["progress_report"] = state.get("progress")
+        req["github_usage"] = GITHUB_PAYLOAD_NOTE
     if state.get("retry_feedback"):
         req["retry_feedback"] = state["retry_feedback"]
     return json.dumps(req, ensure_ascii=False)

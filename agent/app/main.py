@@ -12,6 +12,7 @@ from .errors import (
     AGENT_INPUT_INVALID,
     AgentError,
 )
+from .github import HttpGithubClient
 from .graph import run_plan, run_replan
 from .llm import LLM, MockLLM, get_llm
 from .schemas import (
@@ -23,9 +24,10 @@ from .schemas import (
     ReplanResponse,
 )
 
-app = FastAPI(title="LifeOS Agent Core", version="0.1.0")
+app = FastAPI(title="LifeOS Agent Core", version="0.2.0")
 
 _llm: LLM | None = None
+_github: HttpGithubClient | None = None
 
 
 def get_llm_dep() -> LLM:
@@ -34,6 +36,14 @@ def get_llm_dep() -> LLM:
     if _llm is None:
         _llm = get_llm()
     return _llm
+
+
+def get_github_dep() -> HttpGithubClient:
+    """GitHub 只读工具（Phase 4）。失败在节点内降级，不影响服务可用性。"""
+    global _github
+    if _github is None:
+        _github = HttpGithubClient()
+    return _github
 
 
 def error_body(code: str, message: str, retryable: bool) -> dict:
@@ -73,7 +83,8 @@ def health(llm: LLM = Depends(get_llm_dep)):
         "version": app.version,
         "promptVersion": PROMPT_VERSION,
         "mode": "mock" if isinstance(llm, MockLLM) else "llm",
-        "graph": "analyze->plan|replan->validate->finalize",
+        "graph": "analyze->[github_tool->progress_analysis|]plan|replan->validate->finalize",
+        "tools": ["github(readonly)"],
         "maxLlmCalls": 2,
     }
 
@@ -93,8 +104,8 @@ LLM_CALLS_HEADER = "x-llm-calls"  # 本次请求实际 LLM 调用次数（1=一�
 
 
 @app.post("/v1/plan", response_model=PlanResponse)
-def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep)):
-    state = run_plan(req.model_dump(), llm)
+def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep)):
+    state = run_plan(req.model_dump(), llm, github)
     _raise_if_failed(state)
     return JSONResponse(
         status_code=200,
@@ -104,8 +115,8 @@ def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep)):
 
 
 @app.post("/v1/replan", response_model=ReplanResponse)
-def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep)):
-    state = run_replan(req.model_dump(), llm)
+def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep)):
+    state = run_replan(req.model_dump(), llm, github)
     _raise_if_failed(state)
     return JSONResponse(
         status_code=200,
