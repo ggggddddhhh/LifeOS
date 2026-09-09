@@ -56,3 +56,7 @@ agent/.google-token.json
 agent/.google-token-*.json
 agent/.google-auth-session.json
 agent/google-credentials.json
+
+# phase9 dogfood trace/state
+logs/
+agent/logs/
