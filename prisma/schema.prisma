@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  deadline    DateTime?
+  status      String   @default("active") // active | achieved | archived
+  revision    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+}
+
+model Task {
+  id         String   @id @default(cuid())
+  goalId     String
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title      String
+  notes      String?
+  status     String   @default("todo") // todo | in_progress | done
+  priority   Int      @default(2) // 1 高 2 中 3 低
+  estMinutes Int      @default(60)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([goalId, status])
+}
