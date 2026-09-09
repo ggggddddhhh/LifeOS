@@ -31,6 +31,20 @@ npm run build          # 生产构建验证
 
 见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。核心闭环：目标输入 → AI 拆解（`src/lib/llm`）→ Prisma 入库 → 看板 → 状态更新 → AI Replan（保留已完成任务、按剩余天数重排）。AI 能力全部收敛在 `src/lib/llm/`，Phase 3 替换为 FastAPI Agent Core 调用时，路由与 UI 不变。
 
+## Python Agent Core（Phase 3）
+
+LLM planning 能力已渐进迁移至 FastAPI + LangGraph 服务（`agent/`，M1 起可用）。Next.js 通过统一 Agent Client（`src/lib/agent/client.ts`）调用：
+
+```
+AGENT_MODE=local   # 默认：只走 TS 本地路径（src/lib/llm/，含 mock），行为与迁移前一致
+AGENT_MODE=python  # 只走 Python Agent，失败直接报错（评测用）
+AGENT_MODE=auto    # Python 优先；不可达/超时/5xx/非法JSON/schema不匹配/版本不一致 → 降级 local
+AGENT_CORE_URL=http://127.0.0.1:8000
+AGENT_TIMEOUT_MS=30000
+```
+
+启动 Python Agent：`cd agent && .venv/Scripts/python -m uvicorn app.main:app --port 8000`（无 Key 自动 MockLLM）。Python 不访问数据库；持久化与硬校验（`plan.ts`）全部留在 Next.js。
+
 ## 迁移到 Supabase/PostgreSQL
 
 Schema 未使用 SQLite 专有特性：改 `prisma/schema.prisma` 的 `datasource.provider` 为 `"postgresql"`、设置 `DATABASE_URL`，执行 `prisma db push` 即可。
