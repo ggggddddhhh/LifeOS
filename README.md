@@ -1,94 +1,213 @@
 # LifeOS
 
-AI 目标拆解与看板管理系统：把一个目标拆成可执行的计划，接入真实工具观察进度，
-在现实变化中持续重排——但**写操作永远需要人确认**。
+**An AI planning agent that turns goals into adaptive plans and keeps them aligned with your real progress and calendar.**
 
-```
-用户目标 → LLM 拆解 → 确定性约束收敛 → 看板
-                ↓
-     GitHub（只读进度） + Google Calendar（只读容量）
-                ↓
-     偏差判断 → 新计划（diff） → 日历草稿 → 用户确认 → 幂等写入 → Verify
-```
+> **Public Alpha** — experimental, under active development. Expect rough edges; the core safety model is real and tested, the polish is not.
 
-## 核心设计原则
+<p align="center">
+  <a href="#-demo">Demo</a> ·
+  <a href="#-what-is-lifeos">What is LifeOS?</a> ·
+  <a href="#-getting-started">Getting Started</a> ·
+  <a href="#-safety-model">Safety Model</a> ·
+  <a href="#-known-limitations">Limitations</a>
+</p>
 
-- **Agent 不直接写**：任何写日历的操作都走 Draft → 用户确认 → Execute → Verify，
-  "Agent 自己决定后直接写入"被架构性禁止（Phase 7 起多阶段验证）
-- **幂等 CREATE**：DB 唯一键 + provider 私有属性 pre-check + 超时回查三层防重，
-  真实故障注入（超时实际成功/重复确认/进程重启）下零重复写入（Phase 9 验证）
-- **用户事件优先**：排期避开既有事件；确认前 stale check（Instant 比较），
-  时段被占即拒写，绝不覆盖
-- **三层事实语义**：用户声明 > 工具观察（GitHub/Calendar）> Agent 推断；
-  冲突显式标注并降低置信度，不静默覆盖
-- **确定性收敛**：LLM 提议、代码强制——依赖清洗/容量硬顶/任务数守卫在
-  Python Finalize 与 TS 守卫双侧共享测试向量（`docs/constraints-vectors.json`），
-  双语言漂移零容忍
-- **Instant 全链路**：内部时间只有 UTC Instant + IANA 时区，墙钟换算单点收口，
-  DST ambiguous/nonexistent 不静默猜测（Phase 7.5）
-- **Token 红线**：access/refresh/secret 永不进入 prompt、日志、trace 或错误响应；
-  生产 token 存储 OS 凭据管理器，明文存储拒绝启动（Phase 8.5）
+## 🎬 Demo
 
-## 技术栈
+Watch the full 90-second flow — **Goal → AI Plan → User Edit → Replan → Preview → Confirm → Calendar**:
 
-| 层 | 技术 |
+**[▶ Watch the demo (MP4)](recordings/lifeos-demo-alpha.mp4)**
+
+Every step in the video is a real product run: real LLM planning, real Google Calendar writes through the confirmation flow. No mockups, no staged results.
+
+## Screenshots
+
+| Today | Goal & Kanban |
 |---|---|
-| Web / API / 持久化 | Next.js 16 (App Router) · TypeScript · Tailwind 4 · shadcn/ui · Prisma 6 · SQLite（PG 兼容设计） |
-| Agent Core | Python 3.12 · FastAPI · LangGraph · Pydantic（无数据库、无状态） |
-| 工具 | GitHub 只读（issues/PRs/CI/commits + 匹配置信度）· Google Calendar（OAuth + PKCE + state，仅 CREATE） |
-| 观测 | 双侧结构化 trace（JSONL，runId 跨服务贯穿，secret 脱敏）+ 一键可靠性 audit |
+| ![Today](screenshots/today.png) | ![Kanban](screenshots/goal-kanban.png) |
+| **Replan Preview** | **Calendar** |
+| ![Replan Preview](screenshots/replan-preview.png) | ![Calendar](screenshots/calendar.png) |
 
-## 快速开始
+## 🤔 What is LifeOS?
+
+LifeOS is not a todo app. A todo app stores tasks you type. LifeOS runs an **agent loop** around them:
+
+```
+Goal
+ → AI Plan (LLM decomposition)
+ → User Edit (tasks are yours to change)
+ → Execute (kanban + calendar)
+ → Replan (when reality drifts)
+ → Preview (see exactly what changes)
+ → Confirm (nothing applies without you)
+ → Calendar (draft → confirm → write → verify)
+```
+
+**AI proposes. User decides. Deterministic guards enforce constraints.**
+
+The LLM never touches your calendar. It never silently rewrites a task you edited. Every plan change is diffed, previewed, versioned and undoable. Capacity math, dependency ordering and schedule clamping are enforced by plain code — not by hoping the model behaves.
+
+## ✨ Core Features
+
+- **Natural-language goal planning** — one sentence becomes an estimated, dependency-ordered task plan
+- **AI task decomposition** — one-shot tasks and recurring habits (`durationDays`) with per-day estimates
+- **User-controlled task editing** — create / edit / delete with validation, optimistic locking, cycle detection
+- **User-priority Replan** — tasks you edited are marked `origin=user` and are never rewritten by the AI
+- **Plan Preview / Confirm / Undo** — every replan shows a diff and applies only after explicit confirmation
+- **PlanVersion history** — every revision snapshotted; multi-level undo
+- **Dependency validation** — cycles are rejected at plan time and at edit time
+- **Capacity-aware planning** — workdays × daily capacity; AI tasks compressed, your tasks protected
+- **Personal Planning Settings** — daily minutes, workdays, work window, timezone, target calendar
+- **GitHub read-only progress context** — `repo:owner/name` in a goal description pulls public issue/PR/CI signals
+- **Calendar read context** — busy slots inferred from your calendar; user declarations win
+- **Calendar Draft → Human confirmation → Idempotent write → Verify**
+- **Google Calendar integration** (OAuth, PKCE, minimal scopes) with local ICS fallback
+- **Idempotent write recovery** — interrupted batches converge on retry, zero duplicate events
+- **Timezone-safe Instant model** — UTC internally, IANA wall-clock at the edges, DST-safe
+- **Reliability / reconciliation audit** — one-shot DB ↔ calendar reconciliation + trace metrics
+
+## 🏗 Architecture
+
+```
+Next.js 16 + TypeScript (App Router, Prisma, SQLite/PostgreSQL-ready)
+        ↓  Agent Client (AGENT_MODE=auto: Python first, TS local fallback)
+FastAPI  ·  Python 3.12  ·  stateless
+        ↓
+LangGraph: Analyze → [GitHub tool] → [Calendar tool] → Plan|Replan → Validate → Finalize
+        ↓                                      ↘ deterministic guards (mirror of TS guards)
+LLM (any OpenAI-compatible endpoint)
+```
+
+- **TS deterministic guards** (`src/lib/plan.ts`): dependency sanitize, schedule clamp, task budget, capacity budget — shared test vectors with Python (`docs/constraints-vectors.json`)
+- **Python Agent Core** (`agent/app`): prompts, validation, finalize convergence, trace
+- **Database**: SQLite via Prisma today; schema is PostgreSQL-ready (no SQLite-specific features)
+- **Google Calendar Provider**: OAuth Desktop flow, token store (file dev / OS keyring prod), idempotent CREATE-only protocol
+- **GitHub tool**: read-only, public data, anonymous or `GITHUB_TOKEN`
+
+## 🛡 Safety Model
+
+- **The AI cannot write calendar events.** Writes only happen through
+  `Draft → user Confirm → Execute → Verify`. "The agent decided and wrote directly" is architecturally impossible.
+- **User-origin tasks are protected.** Edit a task and it carries `origin=user`; Replan preserves it verbatim — title, estimate, priority, dates, dependencies.
+- **Deterministic validation** — the LLM proposes; code enforces: dependency cleaning (cycles dropped), schedule clamping to `[today, deadline]`, task-count guard, capacity budget.
+- **Dependency cycle protection** — rejected both in AI plans and in manual edits (with a visible reason).
+- **Idempotency** — every calendar write carries a unique idempotency key; provider pre-check + DB gate + post-timeout re-query. Verified under fault injection: zero duplicate events.
+- **Stale checks** — before writing, slot occupancy is re-checked with Instant comparison; occupied slots are skipped and flagged, never overwritten.
+- **Optimistic locking** — concurrent task edits are detected (409) instead of silently overwriting.
+- **PlanVersion / Undo** — every plan revision keeps an apply-before snapshot; undo walks the chain level by level.
+- **Secret hygiene** — tokens/keys never enter prompts, logs, traces or error responses; trace redaction is tested.
+
+## 🧰 Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Web / API | Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui |
+| Data | Prisma 6 · SQLite (PostgreSQL-ready) |
+| Agent Core | Python 3.12 · FastAPI · LangGraph · Pydantic · httpx |
+| Integrations | Google Calendar API (OAuth+PKCE) · GitHub REST (read-only) |
+| LLM | Any OpenAI-compatible endpoint (e.g. DeepSeek, OpenAI) + built-in deterministic mock |
+| Tests | Vitest (117) · Pytest (178) |
+
+## 🚀 Getting Started
+
+### Requirements
+
+- Node.js ≥ 20 + npm
+- Python ≥ 3.12 (a venv is created below)
+- Google Calendar is **optional** — the app runs fully without it (local ICS provider, and calendar features can simply stay unused)
+
+### Install
 
 ```bash
+# 1. Frontend dependencies
 npm install
-npm run db:push          # 初始化 SQLite 开发库
-npm run agent            # 终端 1：FastAPI Agent Core（:8000，无 Key 自动 MockLLM）
-npm run dev              # 终端 2：Next.js（:3000）
+
+# 2. Python agent dependencies
+cd agent
+python -m venv .venv
+.venv/Scripts/pip install -e .            # Windows
+# .venv/bin/pip install -e .              # macOS/Linux
+cd ..
+
+# 3. Environment + database
+cp .env.example .env                      # edit if you want a real LLM (see below)
+npx prisma db push                        # creates prisma/dev.db
 ```
 
-启动顺序不强制：默认 `AGENT_MODE=auto`——Python 优先，不可达/超时/5xx/契约不匹配自动
-降级 TS 本地路径；Python 恢复后无需重启 Next.js。
+### Configure (optional) a real LLM
 
+Edit `.env` — any OpenAI-compatible endpoint works:
+
+```ini
+LLM_BASE_URL="https://api.deepseek.com"   # or https://api.openai.com/v1
+LLM_API_KEY="<your key>"
+LLM_MODEL="deepseek-chat"
 ```
-AGENT_MODE=auto    # 默认：Python 优先 + TS local 兜底
-AGENT_MODE=local   # 只走 TS 本地（src/lib/llm/，含 mock），排障用
-AGENT_MODE=python  # 只走 Python，失败直接报错（评测用）
-```
 
-### 可选接入
+**Fallback semantics (read this):** with no key, both sides use a built-in deterministic mock — the full product loop still works, plans are just template-quality. With a key, `AGENT_MODE=auto` prefers the Python agent; if it is unreachable/times out/returns a contract mismatch, the web layer **does** fall back to a local planner — this fallback is being made observable in the UI; today check the agent log if plans look suspiciously templated.
 
-- **真实 LLM**：`agent/.env` 设 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL`（任意 OpenAI 兼容端点）
-- **真实 Google Calendar**：Google Cloud Console 建 Desktop OAuth 客户端 →
-  `agent/google-credentials.json` → `CALENDAR_PROVIDER=google` → 首次运行
-  `agent/smoke_google.py` 完成授权（state + PKCE 一次性会话）。默认本地 ICS
-  （`CAL_ICS_PATH`）零配置可用
-- **GitHub 进度**：目标描述含 `repo:owner/name` 即触发只读工具；匿名可用（低配额），
-  `GITHUB_TOKEN` 提升配额
-
-## 测试与验证
+### Run
 
 ```bash
-npm run test                                     # vitest 87
-cd agent && .venv/Scripts/python -m pytest       # pytest 170
-agent/.venv/Scripts/python ../scripts/reliability-audit.py   # DB↔Google 对账 + 五指标判定
+# Terminal 1 — Python Agent Core (:8000)
+npm run agent            # or: npm run agent:full (reads .env, auto-detects calendar)
+
+# Terminal 2 — Next.js (:3000)
+npm run dev
+
+# Browser → http://localhost:3000
 ```
 
-每个阶段都有真实环境评测报告（`docs/eval/`），包括真实 Google 账号的
-授权/写入/幂等/断开/重连全链路、22 类故障注入矩阵、以及多轮真实长跑
-（v1→v2→v3 生命周期 + 进程重启 + token 失效恢复）的可靠性审计。
+Startup order is not strict. Create a goal, and you are in the loop.
 
-## 文档索引
+### Google Calendar (optional)
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — 总体架构
-- `docs/PHASE*-DESIGN.md` — 各阶段设计（Phase 1 核心闭环 → Phase 9.5 可观测性）
-- `docs/eval/EVAL-*.md` — 各阶段评测报告
+1. [Google Cloud Console](https://console.cloud.google.com/) → create an **OAuth client (Desktop app)**
+2. Download the client secret JSON → save as `agent/google-credentials.json` (never commit)
+3. In `.env`: `CALENDAR_PROVIDER=google`
+4. Authorize once: `cd agent && .venv/Scripts/python smoke_google.py` (opens browser, state + PKCE one-shot session)
+5. Token is stored in `agent/.google-token.json` (never commit)
 
-## 迁移到 Supabase/PostgreSQL
+Calendar writes **always** go through an explicit confirmation dialog — the app will show you the exact events before anything is created.
 
-Schema 未使用 SQLite 专有特性：改 `prisma/schema.prisma` 的 `datasource.provider`
-为 `"postgresql"`、设置 `DATABASE_URL`，执行 `prisma db push` 即可。
+## 🧪 Tests
+
+```bash
+npm test                              # Vitest — core guards, API, calendar protocol (117 tests)
+cd agent && .venv/Scripts/python -m pytest   # pytest — agent core (178 tests)
+npm run build                         # production build (tsc strict)
+agent/.venv/Scripts/python scripts/reliability-audit.py   # DB ↔ calendar reconciliation
+```
+
+## ⚠️ Known Limitations
+
+- **Calendar writes on slow/restricted networks.** Confirmation is a synchronous batch; on very slow links (no direct Google access) a batch of more than a few events can exceed request budgets. Writes are idempotent, so **pressing confirm again converges safely** — no duplicates, no manual cleanup. A background execution queue is the planned fix.
+- **Calendar Update/Delete not implemented** — writes are CREATE-only; replanning does not rewrite events already on your calendar (it tells you to regenerate drafts instead).
+- **Email tool not implemented.**
+- **Over-midnight work windows not supported** — settings reject a work window that crosses midnight.
+- **Replan fallback visibility** — when the Python agent is unreachable, the local fallback engages automatically; its surfacing in the UI is still rough.
+- **Single-user** — no auth/multi-tenancy; this is a personal tool by design, for now.
+
+## 📌 Project Status
+
+**Public Alpha.** Suitable for developers, experimentation and personal dogfooding.
+No production SLA, no enterprise readiness promised. The data model may still change; exports are DIY (it's SQLite).
+
+## 🗺 Roadmap (direction, no dates)
+
+- Background calendar execution queue (removes the slow-network ceiling)
+- Calendar event update/delete with the same confirm discipline
+- Fallback/degradation surfacing in the UI
+- PostgreSQL deployment story
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs welcome — please read the safety model first; PRs that weaken the confirmation/idempotency guarantees will be declined.
+
+## Security
+
+See [SECURITY.md](SECURITY.md). In short: **never commit** `.env`, `google-credentials.json`, token files or any key. Report vulnerabilities privately.
 
 ## License
 
-MIT
+[MIT](LICENSE)

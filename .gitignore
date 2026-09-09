@@ -60,3 +60,14 @@ agent/google-credentials.json
 # phase9 dogfood trace/state
 logs/
 agent/logs/
+
+# demo recordings（仅终片 mp4 入库）
+recordings/*.webm
+recordings/concat.txt
+
+# zcode 插件本地状态
+.v2c/
+
+# python agent 字节码/工具缓存
+agent/.venv*/
+.ruff_cache/
