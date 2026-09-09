@@ -413,3 +413,20 @@ class TestNoTokenExecute:
         results = execute_drafts(_req([_draft()]), p)
         assert len(results) == 1
         assert results[0].status == "failed" and "reauth_required" in (results[0].error or "")
+
+
+class TestTokenRefreshTrace:
+    def test_refresh_failure_traced_without_secret(self, fake_server, tmp_path, monkeypatch):
+        """Phase 9.5：refresh 失败有 trace（error_code），且不含 token 值。"""
+        provider, _ = fake_server
+        auth = provider.auth
+        p = tmp_path / "t.jsonl"
+        monkeypatch.setenv("LIFEOS_TRACE_PATH", str(p))
+        STATE.access_grant = "revoked"
+        auth._access_expiry = 0  # noqa: SLF001
+        with pytest.raises(CalendarWriteError):
+            auth.access_token()
+        rows = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()]
+        tr = [r for r in rows if r["event"] == "token_refresh"]
+        assert tr and tr[0]["ok"] is False and tr[0]["error_code"] == "reauth_required"
+        assert "refresh-1" not in p.read_text(encoding="utf-8")

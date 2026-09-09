@@ -35,6 +35,18 @@ from .schemas import (
 
 app = FastAPI(title="LifeOS Agent Core", version="0.2.0")
 
+
+@app.middleware("http")
+async def run_id_middleware(request: Request, call_next):
+    """Phase 9.5：请求级 runId 透传（x-run-id header → trace 上下文），零业务侵入。"""
+    from .trace import set_run_id
+
+    set_run_id(request.headers.get("x-run-id"))
+    try:
+        return await call_next(request)
+    finally:
+        set_run_id(None)
+
 _llm: LLM | None = None
 _github: HttpGithubClient | None = None
 

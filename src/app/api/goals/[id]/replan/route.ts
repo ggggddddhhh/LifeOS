@@ -8,6 +8,7 @@ import type { PlanDiff, TaskSnapshot } from "@/lib/types";
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const t0 = Date.now();
+  const runId = crypto.randomUUID().slice(0, 8); // Phase 9.5：请求级关联（web/agent trace 串联）
   let goalId = "";
   try {
     const { id } = await ctx.params;
@@ -42,7 +43,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       deadline: goal.deadline?.toISOString(),
       daysLeft,
       tasks: snapshots,
-    });
+    }, runId);
 
     // Phase 2：清洗 + 反扩散 guard + diff（在改动数据库前完成全部计算）
     const { deps } = sanitizeDependencies(result.tasks);
@@ -135,6 +136,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const lastCall = recentAgentCalls().at(-1);
     traceEvent("replan", {
+      runId,
       goalId,
       ok: true,
       planVersion: updated.revision,
@@ -155,7 +157,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       data: { reason, diff, goal: updated, finalize: result.finalize ?? null },
     });
   } catch (e) {
-    traceEvent("replan", { goalId, ok: false, error: e instanceof Error ? e.message : "replan failed", latencyMs: Date.now() - t0 });
+    traceEvent("replan", { runId, goalId, ok: false, error: e instanceof Error ? e.message : "replan failed", latencyMs: Date.now() - t0 });
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Replan 失败" },
       { status: 500 },

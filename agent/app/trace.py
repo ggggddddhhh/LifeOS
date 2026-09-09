@@ -12,12 +12,24 @@ from __future__ import annotations
 import json
 import os
 import threading
+from contextvars import ContextVar
 from datetime import datetime, UTC
 from pathlib import Path
 
 _SECRET_MARKERS = ("ya29.", "GOCSPX-", "refresh-", "4/0A", "Bearer ", "client_secret")
 _MAX_STR = 80
 _lock = threading.Lock()
+
+# Phase 9.5：请求级关联 ID（由 FastAPI 中间件从 x-run-id header 注入）
+_run_id: ContextVar[str | None] = ContextVar("lifeos_run_id", default=None)
+
+
+def set_run_id(run_id: str | None) -> None:
+    _run_id.set((run_id or "")[:32] or None)
+
+
+def current_run_id() -> str | None:
+    return _run_id.get()
 
 
 def _redact_str(s: str) -> str:
@@ -48,6 +60,9 @@ def trace(event: str, **fields) -> None:
         path = Path(os.environ.get("LIFEOS_TRACE_PATH") or "logs/agent-trace.jsonl")
         path.parent.mkdir(parents=True, exist_ok=True)
         row = {"ts": datetime.now(UTC).isoformat(timespec="milliseconds"), "event": event[:64]}
+        rid = current_run_id()
+        if rid:
+            row["runId"] = rid
         row.update({k: _sanitize(v) for k, v in fields.items()})
         line = json.dumps(row, ensure_ascii=False)
         with _lock:

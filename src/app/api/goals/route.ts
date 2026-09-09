@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { agentPlanGoal } from "@/lib/agent/client";
 import { sanitizeDependencies, sanitizeSchedule, computePlanDiff } from "@/lib/plan";
 import { normalizeTitle } from "@/lib/llm/parse";
+import { traceEvent } from "@/lib/trace";
 
 export async function GET() {
   const goals = await prisma.goal.findMany({
@@ -16,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+  const runId = crypto.randomUUID().slice(0, 8); // Phase 9.5：请求级关联
   try {
     const body = (await req.json()) as {
       title?: string;
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest) {
       title,
       description: body.description?.trim() || undefined,
       deadline: deadline?.toISOString(),
-    });
+    }, runId);
 
     // Phase 2：依赖清洗 + 调度清洗（LLM 提议，代码强制）
     const { deps } = sanitizeDependencies(planned);
@@ -95,8 +98,10 @@ export async function POST(req: NextRequest) {
       });
     });
 
+    traceEvent("goal_create", { runId, goalId: goal!.id, ok: true, tasksOut: goal!.tasks.length, latencyMs: Date.now() - t0 });
     return NextResponse.json({ ok: true, data: goal }, { status: 201 });
   } catch (e) {
+    traceEvent("goal_create", { runId, ok: false, error: e instanceof Error ? e.message : "create failed", latencyMs: Date.now() - t0 });
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "创建目标失败" },
       { status: 500 },

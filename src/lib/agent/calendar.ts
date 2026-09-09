@@ -21,13 +21,13 @@ function baseUrl(): string {
   return (process.env.AGENT_CORE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
-async function post<T>(path: string, body: unknown, timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? 30_000)): Promise<T> {
+async function post<T>(path: string, body: unknown, timeoutMs = Number(process.env.AGENT_TIMEOUT_MS ?? 30_000), runId?: string): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${baseUrl()}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(runId ? { "x-run-id": runId } : {}) },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -58,8 +58,8 @@ export async function buildCalendarDrafts(req: {
   daysLeft: number;
   timezone: string;
   tasks: { taskId: string; title: string; estMinutes: number; priority: number; status?: string; durationDays?: number | null }[];
-}): Promise<DraftBuildResult> {
-  return post<DraftBuildResult>("/v1/calendar/drafts", req);
+}, runId?: string): Promise<DraftBuildResult> {
+  return post<DraftBuildResult>("/v1/calendar/drafts", req, Number(process.env.AGENT_TIMEOUT_MS ?? 30_000), runId);
 }
 
 /** 执行已确认草稿（仅由 confirm 路由调用）。时间为 Instant。 */
@@ -69,6 +69,6 @@ export async function executeCalendarDrafts(req: {
   timezone: string;
   drafts: CalendarDraftItem[];
   tasks: { taskId: string; estMinutes: number }[];
-}): Promise<{ results: ExecuteResultItem[]; provider: string }> {
-  return post("/v1/calendar/execute", req, EXECUTE_TIMEOUT_MS);
+}, runId?: string): Promise<{ results: ExecuteResultItem[]; provider: string }> {
+  return post("/v1/calendar/execute", req, EXECUTE_TIMEOUT_MS, runId);
 }

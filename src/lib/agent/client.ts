@@ -69,11 +69,12 @@ class RemoteAgentError extends Error {
   }
 }
 
-/** 调 Python /v1/*：带超时与版本头校验，任何失败抛 RemoteAgentError */
+/** 调 Python /v1/*：带超时与版本头校验，任何失败抛 RemoteAgentError；runId 请求级关联（Phase 9.5） */
 async function callPython(
   op: "plan" | "replan",
   path: string,
   body: unknown,
+  runId?: string,
 ): Promise<{ data: unknown; promptVersion: string }> {
   const { baseUrl, timeoutMs } = getConfig();
   const controller = new AbortController();
@@ -82,7 +83,7 @@ async function callPython(
   try {
     res = await fetch(`${baseUrl}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(runId ? { "x-run-id": runId } : {}) },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -222,22 +223,22 @@ async function withFallback<T>(
   }
 }
 
-export async function agentPlanGoal(input: PlanGoalInput): Promise<PlannedTask[]> {
+export async function agentPlanGoal(input: PlanGoalInput, runId?: string): Promise<PlannedTask[]> {
   return withFallback(
     "plan",
     async () => {
-      const { data, promptVersion } = await callPython("plan", "/v1/plan", input);
+      const { data, promptVersion } = await callPython("plan", "/v1/plan", input, runId);
       return { value: validatePlanResponse(data), promptVersion };
     },
     () => localPlanGoal(input),
   );
 }
 
-export async function agentReplanGoal(input: ReplanInput): Promise<ReplanResult> {
+export async function agentReplanGoal(input: ReplanInput, runId?: string): Promise<ReplanResult> {
   return withFallback(
     "replan",
     async () => {
-      const { data, promptVersion } = await callPython("replan", "/v1/replan", input);
+      const { data, promptVersion } = await callPython("replan", "/v1/replan", input, runId);
       return { value: validateReplanResponse(data), promptVersion };
     },
     () => localReplanGoal(input),

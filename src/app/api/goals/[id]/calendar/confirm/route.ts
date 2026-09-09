@@ -14,6 +14,7 @@ import type { CalendarDraftItem } from "@/lib/types";
  */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const t0 = Date.now();
+  const runId = crypto.randomUUID().slice(0, 8);
   let goalId = "";
   try {
     const { id } = await ctx.params;
@@ -80,7 +81,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
           taskId: tid,
           estMinutes: estByTask.get(tid) ?? 60,
         })),
-      });
+      }, runId);
       results = results.concat(executed.results);
       writeProvider = executed.provider; // 真实写目标（google|ics），不再硬编码
     }
@@ -117,13 +118,14 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       orderBy: { proposedStart: "asc" },
     });
     traceEvent("cal_confirm", {
+      runId,
       goalId, ok: true, planVersion: goal.revision, summary,
       errors: results.filter((r) => r.error).map((r) => (r.error ?? "").split(":", 1)[0]),
       latencyMs: Date.now() - t0,
     });
     return NextResponse.json({ ok: true, data: { results, summary, drafts } });
   } catch (e) {
-    traceEvent("cal_confirm", { goalId, ok: false, error: e instanceof Error ? e.message : "confirm failed", latencyMs: Date.now() - t0 });
+    traceEvent("cal_confirm", { runId, goalId, ok: false, error: e instanceof Error ? e.message : "confirm failed", latencyMs: Date.now() - t0 });
     // Python 不可达等：草稿停留 confirmed，可重试（幂等保证安全）
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "日历写入失败（草稿保留，可重试确认）" },

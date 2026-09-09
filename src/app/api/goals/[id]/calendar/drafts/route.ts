@@ -7,6 +7,7 @@ import { traceEvent } from "@/lib/trace";
 /** POST /api/goals/:id/calendar/drafts —— 生成日历草稿（pending_confirmation，永不写日历） */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const t0 = Date.now();
+  const runId = crypto.randomUUID().slice(0, 8);
   let goalId = "";
   try {
     const { id } = await ctx.params;
@@ -59,7 +60,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         status: t.status,
         durationDays: t.durationDays,
       })),
-    });
+    }, runId);
 
     if (built.drafts.length > 0) {
       await prisma.calendarDraft.createMany({
@@ -85,6 +86,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       orderBy: { proposedStart: "asc" },
     });
     traceEvent("cal_drafts", {
+      runId,
       goalId, ok: true, planVersion: goal.revision,
       draftCount: drafts.length, cancelledStale: cancelledStale.count,
       unplaced: built.unplacedTaskIds.length, executedSkipped: executedTaskIds.size,
@@ -92,7 +94,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     });
     return NextResponse.json({ ok: true, data: { drafts, unplacedTaskIds: built.unplacedTaskIds } });
   } catch (e) {
-    traceEvent("cal_drafts", { goalId, ok: false, error: e instanceof Error ? e.message : "drafts failed", latencyMs: Date.now() - t0 });
+    traceEvent("cal_drafts", { runId, goalId, ok: false, error: e instanceof Error ? e.message : "drafts failed", latencyMs: Date.now() - t0 });
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "生成日历草稿失败" },
       { status: 502 },

@@ -226,19 +226,28 @@ class GoogleOAuth:
         if not self._refresh:
             raise GoogleAuthError("reauth_required", "无 refresh_token，需要用户授权")
         client_id, client_secret = self._client_secret()
+        t0 = time.perf_counter()
         try:
             data = self._post_token({
                 "client_id": client_id, "client_secret": client_secret,
                 "refresh_token": self._refresh, "grant_type": "refresh_token",
             })
         except GoogleAuthError as e:
-            if e.code in ("network", "provider_5xx", "rate_limited"):
+            from .trace import trace
+
+            transient = e.code in ("network", "provider_5xx", "rate_limited")
+            # trace 记最终语义码（与 relstats 不可恢复口径一致）；瞬时保留原码
+            trace("token_refresh", ok=False, error_code="reauth_required" if not transient else e.code)
+            if transient:
                 raise  # 瞬时故障：保留 token，下次再试
             # invalid_grant（撤销/过期/换密码）：清库防"复活"，必须重新授权
             self._refresh = None
             self._record = None
             self.store.delete()
             raise GoogleAuthError("reauth_required", "refresh_token 已失效（撤销/过期），本地凭据已清除") from e
+        from .trace import trace
+
+        trace("token_refresh", ok=True, latency_ms=round((time.perf_counter() - t0) * 1000))
         self._apply_token(data)
 
     def access_token(self) -> str:

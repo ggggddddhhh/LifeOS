@@ -26,6 +26,7 @@ interface StubState {
   draftsCalls: number;
   results: { idempotencyKey: string; status: string; error?: string }[];
   writtenUids: string[];
+  seenRunIds: (string | undefined)[];
 }
 
 let state: StubState;
@@ -38,6 +39,9 @@ beforeAll(async () => {
     req.on("data", (c) => (chunks += c));
     req.on("end", () => {
       const body = chunks ? JSON.parse(chunks) : {};
+      if (req.url?.includes("/v1/calendar/")) {
+        state.seenRunIds.push(req.headers["x-run-id"] as string | undefined);
+      }
       const send = (code: number, json: unknown) =>
         res.writeHead(code, { "Content-Type": "application/json", "x-prompt-version": PROMPT_VERSION }).end(JSON.stringify(json));
       if (req.url?.includes("/v1/calendar/drafts")) {
@@ -85,7 +89,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  state = { executeCalls: 0, draftsCalls: 0, results: [], writtenUids: [] };
+  state = { executeCalls: 0, draftsCalls: 0, results: [], writtenUids: [], seenRunIds: [] };
   process.env.AGENT_MODE = "local";
   process.env.AGENT_CORE_URL = url;
   process.env.LLM_API_KEY = "";
@@ -271,5 +275,26 @@ describe("Phase 7：确认制写入闭环", () => {
     const json = (await res.json()) as { ok: boolean; data: { drafts: unknown[]; writes: unknown[] } };
     expect(json.ok).toBe(true);
     expect(json.data.drafts.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Phase 9.5：runId 透传", () => {
+  it("drafts 与 confirm 均携带 8 位 x-run-id（同一请求内一致，跨请求不同）", async () => {
+    const goal = await seedGoal();
+    state.seenRunIds = [];
+    await draftRoute(jsonReq(`/api/goals/${goal.id}/calendar/drafts`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    const draftsCallIds = state.seenRunIds.filter(Boolean);
+    expect(draftsCallIds.length).toBe(1);
+    expect(draftsCallIds[0]).toMatch(/^[0-9a-f]{8}$/);
+    expect(state.seenRunIds[0]).toBe(draftsCallIds[0]); // drafts 只有一次 agent 调用
+
+    state.seenRunIds = [];
+    await confirmRoute(jsonReq(`/api/goals/${goal.id}/calendar/confirm`, "POST"), {
+      params: Promise.resolve({ id: goal.id }),
+    });
+    expect(state.seenRunIds[0]).toMatch(/^[0-9a-f]{8}$/);
+    expect(state.seenRunIds[0]).not.toBe(draftsCallIds[0]); // 不同请求 → 不同 runId
   });
 });
