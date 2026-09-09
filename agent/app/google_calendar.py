@@ -183,6 +183,15 @@ class GoogleCalendarProvider(CalendarClient, CalendarWriteProvider):
             except httpx.HTTPError as e:
                 raise _map_error(e) from e
         if res.status_code == 403:
+            reason = ""
+            try:
+                err_obj = res.json().get("error")
+                errs = err_obj.get("errors", []) if isinstance(err_obj, dict) else []
+                reason = errs[0].get("reason", "") if errs else ""
+            except ValueError:  # 响应体不是 JSON
+                pass
+            if reason == "accessNotConfigured":
+                raise CalendarWriteError("api_disabled", "Google Calendar API 未在项目中启用（403 accessNotConfigured）")
             raise CalendarWriteError("permission_denied", "Google Calendar 权限不足（403）")
         if res.status_code == 429:
             raise CalendarWriteError("rate_limited", "Google Calendar 限流（429）")

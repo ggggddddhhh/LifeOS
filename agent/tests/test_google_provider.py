@@ -100,6 +100,15 @@ class FakeGoogle(BaseHTTPRequestHandler):
         if u.path.endswith("/events"):
             if STATE.fault.get("list") == "403":
                 return self._json(403, {"error": "forbidden"})
+            if STATE.fault.get("list") == "403_api_disabled":
+                return self._json(403, {
+                    "error": {
+                        "code": 403,
+                        "message": "Google Calendar API has not been used in project 1 before or it is disabled.",
+                        "errors": [{"reason": "accessNotConfigured", "domain": "global", "message": "accessNotConfigured"}],
+                        "status": "PERMISSION_DENIED",
+                    }
+                })
             key = q.get("privateExtendedProperty", [""])[0]
             if key.startswith("idempotencyKey="):
                 want = key.split("=", 1)[1]
@@ -208,6 +217,13 @@ class TestRead:
         with pytest.raises(CalendarWriteError) as ei:
             provider.read_events()
         assert ei.value.code == "permission_denied"
+
+    def test_403_access_not_configured_maps_api_disabled(self, fake_server):
+        provider, _ = fake_server
+        STATE.fault["list"] = "403_api_disabled"
+        with pytest.raises(CalendarWriteError) as ei:
+            provider.read_events()
+        assert ei.value.code == "api_disabled"
 
 
 # ---------------------------------------------------------------- 写入与幂等

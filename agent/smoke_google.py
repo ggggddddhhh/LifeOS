@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime, timedelta
-from datetime import timezone as utc
+from datetime import UTC, datetime, timedelta
 
 from app.calendar_write import CalendarWriteError
 from app.google_calendar import GoogleCalendarProvider, GoogleOAuth
@@ -48,7 +47,7 @@ def main() -> int:
         print("授权完成，refresh_token 已持久化")
 
     provider = GoogleCalendarProvider(auth, os.environ.get("GOOGLE_CALENDAR_ID", "primary"))
-    start = datetime.now(utc).replace(microsecond=0) + timedelta(days=1)
+    start = datetime.now(UTC).replace(microsecond=0) + timedelta(days=1)
     end = start + timedelta(minutes=30)
     key = f"smoke:{start.strftime('%Y%m%d%H%M')}:t1:1"
     metadata = {"goalId": "smoke", "taskId": "t1", "planVersion": 1, "timezone": TZ}
