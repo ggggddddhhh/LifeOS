@@ -1,0 +1,261 @@
+"""LangGraph 节点实现（纯函数，LLM 通过闭包注入）。
+规范化语义镜像 src/lib/llm/parse.ts 的 normalizePlannedTasks。"""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, TypedDict
+
+from .errors import AGENT_PARSE_ERROR, AGENT_VALIDATION_ERROR, AgentError
+from .llm import LLM
+from .prompts import PLANNER_SYSTEM, REPLANNER_SYSTEM
+
+MAX_ATTEMPTS = 2  # Validate 失败最多重试 1 次（首次 + 重试），禁止无限循环
+CAPACITY_PER_DAY = 480
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_TITLE_STRIP_RE = re.compile(r"[\s，。、,.:：;；!！?？·\-—_/\\()（）\[\]【】\"'']+")
+
+
+class AgentState(TypedDict, total=False):
+    kind: str  # "plan" | "replan"
+    request: dict[str, Any]
+    analysis: dict[str, Any]
+    raw_output: str
+    tasks: list[dict[str, Any]]
+    reason: str
+    attempts: int
+    retry_feedback: str | None
+    error_code: str | None
+    error_message: str | None
+    llm_calls: int
+
+
+# ---------------------------------------------------------------- Analyze（确定性）
+
+def _days_left(deadline: str | None, fallback: int = 14) -> int:
+    if not deadline:
+        return fallback
+    try:
+        from datetime import date
+
+        target = date.fromisoformat(deadline[:10])
+        return max(1, (target - date.today()).days)
+    except ValueError:
+        return fallback
+
+
+def analyze_node(state: AgentState) -> AgentState:
+    req = state["request"]
+    if state["kind"] == "plan":
+        analysis = {"daysLeft": _days_left(req.get("deadline"))}
+    else:
+        tasks = req.get("tasks", [])
+        open_tasks = [t for t in tasks if t.get("status") != "done"]
+        total_min = sum(t.get("estMinutes", 0) for t in open_tasks)
+        days_left = max(1, int(req.get("daysLeft", 14)))
+        analysis = {
+            "daysLeft": days_left,
+            "openCount": len(open_tasks),
+            "doneCount": len(tasks) - len(open_tasks),
+            "openTotalMinutes": total_min,
+            "capacityMinutes": days_left * CAPACITY_PER_DAY,
+            "overloaded": total_min > days_left * CAPACITY_PER_DAY,
+        }
+    return {"analysis": analysis}
+
+
+def _user_payload(state: AgentState) -> str:
+    """组装给 LLM 的 user 消息：请求 + 分析摘要 +（重试时的错误反馈）。"""
+    req = dict(state["request"])
+    req["analysis"] = state.get("analysis", {})
+    if state.get("retry_feedback"):
+        req["retry_feedback"] = state["retry_feedback"]
+    return json.dumps(req, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------- Plan / Replan（LLM）
+
+def make_plan_node(llm: LLM):
+    def plan_node(state: AgentState) -> AgentState:
+        system = PLANNER_SYSTEM.replace("{TODAY}", _today())
+        raw = llm.complete(system, _user_payload(state))
+        return {"raw_output": raw, "llm_calls": state.get("llm_calls", 0) + 1}
+
+    return plan_node
+
+
+def make_replan_node(llm: LLM):
+    def replan_node(state: AgentState) -> AgentState:
+        raw = llm.complete(REPLANNER_SYSTEM, _user_payload(state))
+        return {"raw_output": raw, "llm_calls": state.get("llm_calls", 0) + 1}
+
+    return replan_node
+
+
+def _today() -> str:
+    from datetime import date
+
+    return date.today().isoformat()
+
+
+# ---------------------------------------------------------------- Validate（确定性 + 有限重试）
+
+def extract_json(text: str) -> Any:
+    """镜像 TS extractJson：```json 围栏 → 首个 [/{ 起 → 从尾部回退解析。"""
+    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    candidate = fenced.group(1) if fenced else text
+    start = re.search(r"[\[{]", candidate)
+    if not start:
+        raise ValueError("输出中未找到 JSON")
+    substr = candidate[start.start():]
+    for end in range(len(substr), 0, -1):
+        if substr[end - 1] in "]}":
+            try:
+                return json.loads(substr[:end])
+            except json.JSONDecodeError:
+                continue
+    raise ValueError("无法解析输出的 JSON")
+
+
+def _parse_date(v: Any) -> str | None:
+    if not isinstance(v, str):
+        return None
+    s = v.strip()
+    if not _DATE_RE.match(s):
+        return None
+    try:
+        from datetime import date
+
+        date.fromisoformat(s)
+        return s
+    except ValueError:
+        return None
+
+
+def normalize_title(title: str) -> str:
+    return _TITLE_STRIP_RE.sub("", title.lower())
+
+
+def normalize_tasks(raw: Any) -> list[dict[str, Any]]:
+    """镜像 TS normalizePlannedTasks：坏条目丢弃、重复标题（归一化）只留首条、
+    非法字段回退默认值。"""
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        title = item.get("title")
+        if not isinstance(title, str) or not title.strip():
+            continue
+        title = title.strip()[:200]
+        key = normalize_title(title)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        est = item.get("estMinutes")
+        est_minutes = min(600, max(10, round(est))) if isinstance(est, (int, float)) else 60
+        pri = item.get("priority")
+        try:
+            priority = round(float(pri)) if float(pri) >= 1 and float(pri) <= 3 else 2
+        except (TypeError, ValueError):
+            priority = 2
+        task: dict[str, Any] = {"title": title, "priority": int(priority), "estMinutes": int(est_minutes)}
+
+        notes = item.get("notes")
+        if isinstance(notes, str) and notes.strip():
+            task["notes"] = notes.strip()[:500]
+
+        dur = item.get("durationDays")
+        try:
+            dur_i = int(float(dur))
+            if dur_i >= 1:
+                task["durationDays"] = min(365, dur_i)
+        except (TypeError, ValueError):
+            pass
+
+        sd = _parse_date(item.get("startDate"))
+        if sd:
+            task["startDate"] = sd
+        dd = _parse_date(item.get("dueDate"))
+        if dd:
+            task["dueDate"] = dd
+
+        deps = item.get("dependsOn")
+        if isinstance(deps, list):
+            cleaned = [d.strip()[:200] for d in deps if isinstance(d, str) and d.strip()]
+            if cleaned:
+                task["dependsOn"] = cleaned
+
+        out.append(task)
+    return out[:20]
+
+
+def make_validate_node():
+    def validate_node(state: AgentState) -> AgentState:
+        attempts = state.get("attempts", 0) + 1
+        try:
+            parsed = extract_json(state.get("raw_output", ""))
+        except ValueError as e:
+            if attempts < MAX_ATTEMPTS:
+                return {"attempts": attempts, "retry_feedback": f"上次输出解析失败（{e}），请只输出严格的 JSON"}
+            return {
+                "attempts": attempts,
+                "error_code": AGENT_PARSE_ERROR,
+                "error_message": "LLM 输出两次均无法解析为 JSON",
+            }
+
+        tasks = normalize_tasks(parsed.get("tasks") if isinstance(parsed, dict) else parsed)
+        reason = ""
+        if state["kind"] == "replan":
+            reason = parsed.get("reason", "") if isinstance(parsed, dict) else ""
+
+        problem = None
+        if len(tasks) == 0:
+            problem = "任务列表为空"
+        elif state["kind"] == "replan" and not str(reason).strip():
+            problem = "reason 为空"
+        if problem:
+            if attempts < MAX_ATTEMPTS:
+                return {"attempts": attempts, "retry_feedback": f"上次输出未通过校验：{problem}，请修正后重新输出"}
+            return {
+                "attempts": attempts,
+                "error_code": AGENT_VALIDATION_ERROR,
+                "error_message": f"LLM 输出两次均未通过校验：{problem}",
+            }
+
+        update: dict[str, Any] = {"attempts": attempts, "tasks": tasks, "retry_feedback": None}
+        if state["kind"] == "replan":
+            update["reason"] = str(reason).strip()
+        return update
+
+    return validate_node
+
+
+# ---------------------------------------------------------------- Finalize（确定性）
+
+def finalize_node(state: AgentState) -> AgentState:
+    # 契约出口：确保字段名恰为 camelCase 且无多余键
+    tasks = [
+        {
+            "title": t["title"],
+            **({"notes": t["notes"]} if t.get("notes") else {}),
+            "priority": t["priority"],
+            "estMinutes": t["estMinutes"],
+            **({"durationDays": t["durationDays"]} if t.get("durationDays") else {}),
+            **({"startDate": t["startDate"]} if t.get("startDate") else {}),
+            **({"dueDate": t["dueDate"]} if t.get("dueDate") else {}),
+            **({"dependsOn": t["dependsOn"]} if t.get("dependsOn") else {}),
+        }
+        for t in state["tasks"]
+    ]
+    return {"tasks": tasks}
+
+
+def fail_node(state: AgentState) -> AgentState:
+    # 终态已写入 error_code/error_message；服务层据此转为结构化错误响应
+    return {}

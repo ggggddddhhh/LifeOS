@@ -1,0 +1,102 @@
+"""FastAPI Agent Core。版本化路由 /v1/*，结构化错误响应（无 traceback）。
+本服务无状态、不访问数据库；持久化由 Next.js 业务层负责。"""
+
+from __future__ import annotations
+
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from .errors import (
+    AGENT_INTERNAL_ERROR,
+    AGENT_INPUT_INVALID,
+    AgentError,
+)
+from .graph import run_plan, run_replan
+from .llm import LLM, MockLLM, get_llm
+from .schemas import (
+    PROMPT_VERSION,
+    PlanRequest,
+    PlanResponse,
+    PlannedTask,
+    ReplanRequest,
+    ReplanResponse,
+)
+
+app = FastAPI(title="LifeOS Agent Core", version="0.1.0")
+
+_llm: LLM | None = None
+
+
+def get_llm_dep() -> LLM:
+    """依赖注入点：测试可通过 app.dependency_overrides 替换 LLM。"""
+    global _llm
+    if _llm is None:
+        _llm = get_llm()
+    return _llm
+
+
+def error_body(code: str, message: str, retryable: bool) -> dict:
+    return {"error": {"code": code, "message": message, "retryable": retryable}}
+
+
+@app.exception_handler(AgentError)
+async def agent_error_handler(_req: Request, exc: AgentError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_body(exc.code, exc.message, exc.retryable),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_req: Request, exc: RequestValidationError):
+    # 摘要化错误，不暴露内部细节
+    locs = [".".join(str(p) for p in e.get("loc", []) if p != "body") for e in exc.errors()]
+    msg = f"请求不符合 schema: {', '.join(locs)}" if locs else "请求不符合 schema"
+    return JSONResponse(status_code=422, content=error_body(AGENT_INPUT_INVALID, msg, False))
+
+
+@app.exception_handler(Exception)
+async def internal_error_handler(_req: Request, exc: Exception):
+    # 永不向调用方暴露 Python traceback
+    return JSONResponse(
+        status_code=500,
+        content=error_body(AGENT_INTERNAL_ERROR, "Agent 内部错误", False),
+    )
+
+
+@app.get("/health")
+def health(llm: LLM = Depends(get_llm_dep)):
+    return {
+        "ok": True,
+        "service": "lifeos-agent",
+        "version": app.version,
+        "promptVersion": PROMPT_VERSION,
+        "mode": "mock" if isinstance(llm, MockLLM) else "llm",
+        "graph": "analyze->plan|replan->validate->finalize",
+        "maxLlmCalls": 2,
+    }
+
+
+def _raise_if_failed(state: dict) -> None:
+    if state.get("error_code"):
+        raise AgentError(
+            state["error_code"],
+            state.get("error_message", "Agent 处理失败"),
+            status_code=502,
+            retryable=True,
+        )
+
+
+@app.post("/v1/plan", response_model=PlanResponse)
+def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep)):
+    state = run_plan(req.model_dump(), llm)
+    _raise_if_failed(state)
+    return PlanResponse(tasks=[PlannedTask(**t) for t in state["tasks"]])
+
+
+@app.post("/v1/replan", response_model=ReplanResponse)
+def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep)):
+    state = run_replan(req.model_dump(), llm)
+    _raise_if_failed(state)
+    return ReplanResponse(reason=state["reason"], tasks=[PlannedTask(**t) for t in state["tasks"]])

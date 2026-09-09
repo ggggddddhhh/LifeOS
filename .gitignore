@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+prisma/*.db
+prisma/*.db-journal
+
+# python agent
+agent/.venv/
+agent/__pycache__/
+**/__pycache__/
+.pytest_cache/

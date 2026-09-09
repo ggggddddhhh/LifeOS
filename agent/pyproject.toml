@@ -1,0 +1,19 @@
+[project]
+name = "lifeos-agent"
+version = "0.1.0"
+description = "LifeOS Python Agent Core — LangGraph Planner/Replanner（无数据库、无状态）"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "langgraph>=0.2",
+  "pydantic>=2.7",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
