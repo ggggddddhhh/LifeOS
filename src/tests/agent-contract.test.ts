@@ -180,6 +180,34 @@ describe("契约：Python → TS 响应字段（复验生效）", () => {
     expect(r.reason).toBeTruthy();
     expect(recentAgentCalls().at(-1)!.fallbackReason).toBe("empty_reason");
   });
+
+  it("capacityMinutes 透传（Calendar 容量进入 TS 硬约束输入）", async () => {
+    process.env.AGENT_MODE = "python";
+    process.env.AGENT_CORE_URL = url;
+    handler = () => ({
+      status: 200,
+      headers: { "x-prompt-version": PROMPT_VERSION },
+      json: { reason: "按真实容量重排", tasks: [{ title: "a", priority: 1, estMinutes: 60 }], capacityMinutes: 1140 },
+    });
+    const r = await agentReplanGoal({
+      goalTitle: "g",
+      daysLeft: 7,
+      tasks: [{ title: "a", status: "todo", estMinutes: 300, priority: 1 }],
+    });
+    expect(r.capacityMinutes).toBe(1140);
+    // 非法值不透传
+    handler = () => ({
+      status: 200,
+      headers: { "x-prompt-version": PROMPT_VERSION },
+      json: { reason: "r", tasks: [{ title: "a", priority: 1, estMinutes: 60 }], capacityMinutes: -5 },
+    });
+    const r2 = await agentReplanGoal({
+      goalTitle: "g",
+      daysLeft: 7,
+      tasks: [{ title: "a", status: "todo", estMinutes: 300, priority: 1 }],
+    });
+    expect(r2.capacityMinutes).toBeNull();
+  });
 });
 
 describe("版本不一致", () => {

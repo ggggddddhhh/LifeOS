@@ -44,11 +44,17 @@ class ReplanRequest(BaseModel):
     deadline: Optional[str] = None  # ISO-8601
     daysLeft: int = Field(ge=1, le=3650)
     tasks: list[TaskSnapshot] = Field(min_length=1)
+    # 用户主动声明的每日可投入分钟数（下标 = 剩余第几天，长度应≈daysLeft）。
+    # 语义层级：用户声明 > Calendar 推断 > 默认 480/天；与推断冲突时显式标注。
+    declaredMinutesPerDay: Optional[list[int]] = None
 
 
 class ReplanResponse(BaseModel):
     reason: str
     tasks: list[PlannedTask]
+    # 本次 replan 实际采用的可用容量（分钟）。仅当存在 Calendar 数据或用户声明时返回；
+    # TS 侧用它覆写 enforceTimeBudget 的默认 480×天数 上限（扩展容量输入来源，不改硬约束原则）。
+    capacityMinutes: Optional[int] = None
 
 
 # ---------------------------------------------------------------- Phase 4：GitHub 只读工具
@@ -130,3 +136,54 @@ class ProgressReport(BaseModel):
     conflicts: list[StatusConflict] = []
     verdict: str = "unknown"  # ahead | on_track | behind | unknown
     reasons: list[str] = []
+
+
+# ---------------------------------------------------------------- Phase 5：Calendar 只读工具
+
+class CalendarEvent(BaseModel):
+    """Calendar 观察事实（原始事件，截断保留）。"""
+    title: str
+    start: str  # ISO
+    end: str  # ISO
+    all_day: bool = False
+
+
+class DayBusy(BaseModel):
+    """Calendar 观察事实：某日忙碌统计（无事件日 busy_minutes=0 也会出现）。"""
+    date: str  # YYYY-MM-DD
+    busy_minutes: int = 0
+    event_count: int = 0
+    all_day_event: bool = False
+
+
+class CalendarFacts(BaseModel):
+    ok: bool
+    error: str | None = None
+    days: list[DayBusy] = []
+    events: list[CalendarEvent] = []
+    window_days: int = 0
+    fetched_at: str = ""
+
+
+class CapacityConflict(BaseModel):
+    """用户声明与 Calendar 推断冲突（显式标注，不静默采信任何一方）。"""
+    day_index: int  # 剩余第几天（1 起）
+    date: str
+    declared_minutes: int
+    inferred_minutes: int
+    note: str
+
+
+class CapacityReport(BaseModel):
+    """容量三层语义汇总：声明（用户）/ 推断（Agent，由观察计算）/ 默认（480）。
+    effective 优先级：声明 > 推断 > 默认；冲突进 conflicts。"""
+    available: bool
+    source: str = "default"  # declared | calendar_inferred | declared+calendar | default
+    per_day_effective: list[int] = []
+    per_day_declared: list[int] | None = None
+    per_day_inferred: list[int] | None = None
+    capacity_minutes: int = 0
+    window_days: int = 0
+    daily_window_minutes: int = 0  # 推断参数：每日总窗口
+    conflicts: list[CapacityConflict] = []
+    signals: list[str] = []

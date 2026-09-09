@@ -182,6 +182,28 @@ describe("enforceTimeBudget", () => {
     expect(note).toBeNull();
   });
 
+  it("容量覆写：真实可用容量小于默认上限时按覆写值裁剪", () => {
+    // 7 天默认上限 3360；真实容量（日历）仅 1140
+    const { tasks } = enforceTimeBudget(
+      [
+        task({ title: "P1核心", priority: 1, estMinutes: 600 }),
+        task({ title: "P2重要", priority: 2, estMinutes: 500 }),
+        task({ title: "P3可选", priority: 3, estMinutes: 300 }),
+      ],
+      7,
+      480,
+      1140,
+    );
+    const total = tasks.reduce((s, t) => s + t.estMinutes, 0);
+    expect(total).toBeLessThanOrEqual(1140);
+    expect(tasks.map((t) => t.title)).not.toContain("P3可选");
+  });
+
+  it("非法覆写值（0/负数）回退默认上限", () => {
+    const { tasks } = enforceTimeBudget([task({ title: "A", estMinutes: 600 })], 2, 480, 0);
+    expect(tasks.length).toBe(1); // 960 容量内不裁剪
+  });
+
   it("超容量先砍低优先级且无人依赖的任务", () => {
     // 2 天 × 480 = 960 容量；总量 1400 超载
     const { tasks, note } = enforceTimeBudget(

@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from .calendar import CalendarClient, IcsCalendarClient
 from .errors import (
     AGENT_INTERNAL_ERROR,
     AGENT_INPUT_INVALID,
@@ -46,6 +47,14 @@ def get_github_dep() -> HttpGithubClient:
     return _github
 
 
+def get_calendar_dep() -> CalendarClient | None:
+    """Calendar 只读工具（Phase 5）。CAL_ICS_PATH 未配置时返回 None = 工具停用（完全保持现有行为）。"""
+    import os
+
+    path = os.environ.get("CAL_ICS_PATH", "")
+    return IcsCalendarClient(path) if path else None
+
+
 def error_body(code: str, message: str, retryable: bool) -> dict:
     return {"error": {"code": code, "message": message, "retryable": retryable}}
 
@@ -77,14 +86,15 @@ async def internal_error_handler(_req: Request, exc: Exception):
 
 @app.get("/health")
 def health(llm: LLM = Depends(get_llm_dep)):
+    calendar_on = get_calendar_dep() is not None
     return {
         "ok": True,
         "service": "lifeos-agent",
         "version": app.version,
         "promptVersion": PROMPT_VERSION,
         "mode": "mock" if isinstance(llm, MockLLM) else "llm",
-        "graph": "analyze->[github_tool->progress_analysis|]plan|replan->validate->finalize",
-        "tools": ["github(readonly)"],
+        "graph": "analyze->[github_tool]->[calendar_tool]->progress_analysis->plan|replan->validate->finalize",
+        "tools": ["github(readonly)", *(["calendar(readonly)"] if calendar_on else [])],
         "maxLlmCalls": 2,
     }
 
@@ -104,8 +114,8 @@ LLM_CALLS_HEADER = "x-llm-calls"  # 本次请求实际 LLM 调用次数（1=一�
 
 
 @app.post("/v1/plan", response_model=PlanResponse)
-def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep)):
-    state = run_plan(req.model_dump(), llm, github)
+def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep), calendar: CalendarClient | None = Depends(get_calendar_dep)):
+    state = run_plan(req.model_dump(), llm, github, calendar)
     _raise_if_failed(state)
     return JSONResponse(
         status_code=200,
@@ -115,11 +125,16 @@ def plan(req: PlanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubCl
 
 
 @app.post("/v1/replan", response_model=ReplanResponse)
-def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep)):
-    state = run_replan(req.model_dump(), llm, github)
+def replan(req: ReplanRequest, llm: LLM = Depends(get_llm_dep), github: HttpGithubClient = Depends(get_github_dep), calendar: CalendarClient | None = Depends(get_calendar_dep)):
+    state = run_replan(req.model_dump(), llm, github, calendar)
     _raise_if_failed(state)
+    capacity = (state.get("capacity") or {}).get("capacity_minutes")
     return JSONResponse(
         status_code=200,
         headers={VERSION_HEADER: PROMPT_VERSION, LLM_CALLS_HEADER: str(state.get("llm_calls", 0))},
-        content=ReplanResponse(reason=state["reason"], tasks=[PlannedTask(**t) for t in state["tasks"]]).model_dump(),
+        content=ReplanResponse(
+            reason=state["reason"],
+            tasks=[PlannedTask(**t) for t in state["tasks"]],
+            capacityMinutes=capacity if isinstance(capacity, int) else None,
+        ).model_dump(),
     )

@@ -68,6 +68,7 @@ export interface ReplanInput {
 export interface ReplanResult {
   reason: string; // 一句话说明为何这样调整
   tasks: PlannedTask[]; // 未完成部分的全新计划
+  capacityMinutes?: number | null; // 实际采用的可用容量（Calendar 观察/用户声明时返回）
 }
 
 export type Envelope<T> =

@@ -46,7 +46,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     sanitizeSchedule(result.tasks, deps, { today, deadline: goal.deadline?.toISOString().slice(0, 10) ?? null });
     const oldOpenTitles = new Set(openTasks.map((t) => normalizeTitle(t.title)));
     let finalTasks = enforceTaskBudget(result.tasks, oldOpenTitles);
-    const budget = enforceTimeBudget(finalTasks, daysLeft);
+    // 容量输入源扩展：Agent 返回真实可用容量（Calendar 观察/用户声明）时覆写默认 480×天数
+    const budget = enforceTimeBudget(finalTasks, daysLeft, 480, result.capacityMinutes ?? null);
     finalTasks = budget.tasks;
     // 丢弃与已完成任务同名的条目：LLM 偶尔会"复活"已完成工作（Phase 2 评测发现）
     const doneTitles = new Set(goal.tasks.filter((t) => t.status === "done").map((t) => normalizeTitle(t.title)));

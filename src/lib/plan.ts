@@ -198,16 +198,21 @@ export function enforceTaskBudget(tasks: PlannedTask[], oldTitles: Set<string>):
 }
 
 /**
- * 硬容量保证（Phase 2 评测发现 prompt 约束不够硬）：总估时 ≤ daysLeft × 480 分钟。
- * 超限时先砍无人依赖的低优先级任务；全是 P1/被依赖时按比例压缩估时（下限 15 分钟）。
+ * 硬容量保证：总估时 ≤ 上限。
+ * 上限来源（扩展容量输入，不改硬约束原则）：
+ *   capacityOverride（Calendar 观察/用户声明的真实可用容量）> daysLeft × capPerDay（默认 480/天）。
+ * 超限时先砍无人依赖的低优先级任务（P3 → P2；P1 核心任务不砍，只参与等比压缩）。
  * 返回最终任务列表与调整说明（供 reason 追加）。
  */
 export function enforceTimeBudget(
   tasks: PlannedTask[],
   daysLeft: number,
   capPerDay = CAPACITY_MINUTES_PER_DAY,
+  capacityOverride?: number | null,
 ): { tasks: PlannedTask[]; note: string | null } {
-  const cap = Math.max(capPerDay, daysLeft * capPerDay);
+  const cap = capacityOverride && capacityOverride > 0
+    ? capacityOverride
+    : Math.max(capPerDay, daysLeft * capPerDay);
   const out = [...tasks];
   const total = () => out.reduce((s, t) => s + t.estMinutes, 0);
   if (total() <= cap) return { tasks: out, note: null };

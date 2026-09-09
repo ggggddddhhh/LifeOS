@@ -8,9 +8,10 @@ import re
 from typing import Any, TypedDict
 
 from .errors import AGENT_PARSE_ERROR, AGENT_VALIDATION_ERROR, AgentError
+from .calendar import CalendarClient, analyze_capacity
 from .github import GithubClient, analyze_progress, extract_repo
 from .llm import LLM
-from .prompts import GITHUB_PAYLOAD_NOTE, PLANNER_SYSTEM, REPLANNER_SYSTEM
+from .prompts import CALENDAR_PAYLOAD_NOTE, GITHUB_PAYLOAD_NOTE, PLANNER_SYSTEM, REPLANNER_SYSTEM
 
 MAX_ATTEMPTS = 2  # Validate 失败最多重试 1 次（首次 + 重试），禁止无限循环
 CAPACITY_PER_DAY = 480
@@ -26,6 +27,8 @@ class AgentState(TypedDict, total=False):
     repo: dict[str, str] | None  # {"owner","name"}，analyze 从目标文本解析
     github: dict[str, Any] | None  # GithubFacts.model_dump()
     progress: dict[str, Any] | None  # ProgressReport.model_dump()
+    calendar: dict[str, Any] | None  # CalendarFacts.model_dump()
+    capacity: dict[str, Any] | None  # CapacityReport.model_dump()
     raw_output: str
     tasks: list[dict[str, Any]]
     reason: str
@@ -35,6 +38,7 @@ class AgentState(TypedDict, total=False):
     error_message: str | None
     llm_calls: int
     github_calls: int
+    calendar_calls: int
 
 
 # ---------------------------------------------------------------- Analyze（确定性）
@@ -102,15 +106,45 @@ def progress_analysis_node(state: AgentState) -> AgentState:
     return {"progress": report.model_dump()}
 
 
+# ---------------------------------------------------------------- Calendar Tool（Phase 5）
+
+def make_calendar_tool_node(calendar: CalendarClient | None):
+    def calendar_tool_node(state: AgentState) -> AgentState:
+        declared = state["request"].get("declaredMinutesPerDay") if state["kind"] == "replan" else None
+        if calendar is None and not declared:
+            return {}  # 工具停用且无用户声明 → 不注入任何容量字段（完全保持现有行为）
+        days_left = max(1, int(state.get("analysis", {}).get("daysLeft", 7)))
+        facts = None
+        if calendar is not None:
+            try:
+                window = max(7, min(30, days_left))  # 观测窗口 7~30 天
+                facts = calendar.fetch_facts(window)
+            except Exception as e:  # noqa: BLE001 —— 工具失败绝不扩散为 graph 失败
+                from .schemas import CalendarFacts
+
+                facts = CalendarFacts(ok=False, error=f"{type(e).__name__}: {e}", window_days=0)
+        report = analyze_capacity(facts if facts is not None and facts.ok else None, days_left=days_left, declared=declared)
+        return {
+            **({"calendar": facts.model_dump()} if facts is not None else {}),
+            "capacity": report.model_dump() if report.available else None,
+            "calendar_calls": state.get("calendar_calls", 0) + (1 if calendar is not None else 0),
+        }
+
+    return calendar_tool_node
+
+
 def _user_payload(state: AgentState) -> str:
-    """组装给 LLM 的 user 消息：请求 + 分析摘要 +（GitHub 上下文）+（重试反馈）。
-    无仓库路径不注入任何 github 字段，payload 与 Phase 3 逐字节一致。"""
+    """组装给 LLM 的 user 消息：请求 + 分析摘要 +（GitHub 上下文）+（容量上下文）+（重试反馈）。
+    无对应数据的路径不注入任何相关字段——无仓库/无日历的 payload 与此前逐字节一致（容量字段除外）。"""
     req = dict(state["request"])
     req["analysis"] = state.get("analysis", {})
     if state.get("github") is not None:
         req["github_context"] = state["github"]
         req["progress_report"] = state.get("progress")
         req["github_usage"] = GITHUB_PAYLOAD_NOTE
+    if state.get("capacity") is not None:
+        req["capacity"] = state["capacity"]
+        req["capacity_usage"] = CALENDAR_PAYLOAD_NOTE
     if state.get("retry_feedback"):
         req["retry_feedback"] = state["retry_feedback"]
     return json.dumps(req, ensure_ascii=False)

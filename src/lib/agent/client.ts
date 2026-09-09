@@ -132,7 +132,7 @@ function validateReplanResponse(data: unknown): ReplanResult {
   if (typeof data !== "object" || data === null) {
     throw new RemoteAgentError("schema_mismatch", "Agent 响应不是对象");
   }
-  const r = data as { reason?: unknown; tasks?: unknown };
+  const r = data as { reason?: unknown; tasks?: unknown; capacityMinutes?: unknown };
   if (typeof r.reason !== "string" || !r.reason.trim()) {
     throw new RemoteAgentError("empty_reason", "Agent 响应缺少 reason");
   }
@@ -143,7 +143,11 @@ function validateReplanResponse(data: unknown): ReplanResult {
   if (tasks.length === 0) {
     throw new RemoteAgentError("empty_tasks", "Agent 返回任务为空");
   }
-  return { reason: r.reason.trim(), tasks };
+  return {
+    reason: r.reason.trim(),
+    tasks,
+    capacityMinutes: typeof r.capacityMinutes === "number" && r.capacityMinutes > 0 ? r.capacityMinutes : null,
+  };
 }
 
 async function withFallback<T>(
