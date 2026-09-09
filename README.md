@@ -4,6 +4,8 @@
 
 > **Public Alpha** — experimental, under active development. Expect rough edges; the core safety model is real and tested, the polish is not.
 
+**English** · [简体中文](README.zh-CN.md)
+
 <p align="center">
   <a href="#-demo">Demo</a> ·
   <a href="#-what-is-lifeos">What is LifeOS?</a> ·
