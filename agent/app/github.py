@@ -233,15 +233,28 @@ def analyze_progress(facts: GithubFacts, tasks: list[dict]) -> ProgressReport:
 
     matches = match_tasks_to_issues(open_tasks, facts.open_issues) + match_tasks_to_issues(open_tasks, facts.closed_recent)
     # observed_done：未完成任务匹配到已关闭 issue（置信度 ≥0.75 才认）
-    observed_done: list[str] = []
     closed_matches = match_tasks_to_issues(open_tasks, facts.closed_recent, min_confidence=0.75)
     observed_done = [m.task_title for m in closed_matches]
     if observed_done:
         signals.append(f"以下未完成任务在 GitHub 已有对应 issue 关闭（观察事实）: {'、'.join(observed_done)}")
-    _ = open_issue_titles, closed_issue_titles  # 保留给调试
+
+    # 冲突检测（Phase 4.5）：用户标记完成的任务在 GitHub 仍开放 → 显式标注，禁止静默采信任何一方
+    from .schemas import StatusConflict
+
+    reasons: list[str] = []
+    done_tasks = [t for t in tasks if t.get("status") == "done"]
+    conflicts: list[StatusConflict] = []
+    for m in match_tasks_to_issues(done_tasks, facts.open_issues, min_confidence=0.75):
+        conflicts.append(StatusConflict(
+            task_title=m.task_title, issue_number=m.issue_number, issue_title=m.issue_title,
+            user_status="done", github_state="open", confidence=m.confidence,
+        ))
+    if conflicts:
+        for c in conflicts:
+            signals.append(f"状态冲突：任务「{c.task_title}」用户标记为完成，但对应 issue #{c.issue_number} 仍开放——需用户确认")
+        reasons.append(f"{len(conflicts)} 项任务的用户状态与 GitHub 观察冲突，自动判断置信度降低，建议用户确认后再定")
 
     # 推断（verdict）
-    reasons: list[str] = []
     behind = False
     ci_fail = any(r.conclusion and r.conclusion != "success" and r.branch in ("", "main", "master") for r in facts.ci_runs)
     if ci_fail:
@@ -260,6 +273,6 @@ def analyze_progress(facts: GithubFacts, tasks: list[dict]) -> ProgressReport:
         reasons.append("无 CI 失败、无积压 PR、issue 规模与任务量相当")
     verdict = "behind" if behind else "on_track"
     return ProgressReport(
-        available=True, signals=signals, matches=matches, observed_done=observed_done,
+        available=True, signals=signals, matches=matches, observed_done=observed_done, conflicts=conflicts,
         verdict=verdict, reasons=reasons,
     )

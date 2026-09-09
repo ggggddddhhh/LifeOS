@@ -175,6 +175,24 @@ class TestAnalyzeProgress:
         assert report.verdict == "unknown"
         assert "404" in report.reasons[0]
 
+    def test_conflict_detected_and_annotated(self):
+        """用户声明 done + GitHub issue 仍开放 → 显式冲突标注，不静默覆盖。"""
+        facts = make_facts(open_issue_titles=["实现支付回调"])
+        tasks = [
+            {"title": "实现支付回调", "status": "done"},  # 用户说做完了
+            {"title": "其他任务", "status": "todo"},
+        ]
+        report = analyze_progress(facts, tasks)
+        assert len(report.conflicts) == 1
+        c = report.conflicts[0]
+        assert c.task_title == "实现支付回调"
+        assert c.user_status == "done"
+        assert c.github_state == "open"
+        assert any("冲突" in s for s in report.signals)
+        assert any("置信度降低" in r for r in report.reasons)
+        # observed_done 不包含冲突任务（它不是 open 任务）
+        assert "实现支付回调" not in report.observed_done
+
 
 # ---------------------------------------------------------------- 图分支与降级
 

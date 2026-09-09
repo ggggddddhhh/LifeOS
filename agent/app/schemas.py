@@ -111,11 +111,22 @@ class TaskMatch(BaseModel):
     method: str  # exact | substring | jaccard
 
 
+class StatusConflict(BaseModel):
+    """用户声明与 GitHub 观察冲突（Phase 4.5：必须显式标注，禁止静默覆盖）。"""
+    task_title: str
+    issue_number: int
+    issue_title: str
+    user_status: str  # 用户声明（如 done）
+    github_state: str  # GitHub 观察（如 open）
+    confidence: float
+
+
 class ProgressReport(BaseModel):
     """进度分析：signals=事实观察，verdict/reasons=Agent 推断（明确分离）。"""
     available: bool
     signals: list[str] = []
     matches: list[TaskMatch] = []
     observed_done: list[str] = []
+    conflicts: list[StatusConflict] = []
     verdict: str = "unknown"  # ahead | on_track | behind | unknown
     reasons: list[str] = []
