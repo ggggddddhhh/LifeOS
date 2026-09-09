@@ -71,3 +71,5 @@ recordings/concat.txt
 # python agent 字节码/工具缓存
 agent/.venv*/
 .ruff_cache/
+recordings/*.mp4
+!recordings/lifeos-demo-alpha.mp4
