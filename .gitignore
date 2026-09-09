@@ -49,3 +49,7 @@ agent/.venv/
 agent/__pycache__/
 **/__pycache__/
 .pytest_cache/
+
+# google oauth token
+agent/.google-token.json
+agent/google-credentials.json

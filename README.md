@@ -53,6 +53,15 @@ AGENT_TIMEOUT_MS=30000
 
 降级原因记录在服务端日志（`[agent] <op> fallback(<reason>): <detail>`）与进程内遥测 `recentAgentCalls()`（provider / latency / fallbackReason / promptVersion）。Python 不访问数据库；持久化与硬校验（`plan.ts`）全部留在 Next.js。`src/lib/llm/` 保留为 fallback 路径，不删除。
 
+### Calendar Provider（Phase 8）
+
+```
+CALENDAR_PROVIDER=ics     # 默认：本地 ICS 文件（CAL_ICS_PATH）
+CALENDAR_PROVIDER=google  # 真实 Google Calendar（读事件/创建 LifeOS 事件，OAuth 见 agent/.env.example）
+```
+
+Google 接入：凭据就绪后运行 `agent/smoke_google.py` 做真实冒烟（创建 `[LifeOS Test]` 事件 → Verify → 幂等复验，不自动删除）。写操作全部经过用户确认（Phase 7 确认制）；时间语义为 Instant+IANA（Phase 7.5）。
+
 ## 迁移到 Supabase/PostgreSQL
 
 Schema 未使用 SQLite 专有特性：改 `prisma/schema.prisma` 的 `datasource.provider` 为 `"postgresql"`、设置 `DATABASE_URL`，执行 `prisma db push` 即可。

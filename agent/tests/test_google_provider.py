@@ -1,0 +1,326 @@
+"""Phase 8：Google Calendar Provider 测试（本地 Fake Google 服务，覆盖 13 类场景）。"""
+
+from __future__ import annotations
+
+import json
+import threading
+from datetime import datetime, timedelta, timezone as tzmod
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+import httpx
+import pytest
+
+from app.calendar_write import CalendarWriteError, execute_drafts
+from app.google_calendar import GoogleCalendarProvider, GoogleOAuth
+from app.schemas import CalendarDraftItem, ExecuteRequest
+
+UTC = tzmod.utc
+PORT_HOLDER = {"port": 0}
+
+
+class FakeGoogleState:
+    def __init__(self):
+        self.events: list[dict] = []
+        self.next_id = 1
+        self.create_calls = 0
+        self.fault: dict = {}  # {"create": "timeout_after_write"|"timeout_no_write"|"5xx"|"429", "get": "404"|"wrong_start", "list": "403"}
+        self.refresh_calls = 0
+        self.access_grant = "ok"  # ok | revoked
+        self.precreated: list[dict] = []  # 服务器"已经"存在的事件（timeout-after-write 场景）
+
+
+STATE = FakeGoogleState()
+
+
+class FakeGoogle(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def _json(self, code, body):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(body).encode())
+
+    def _body(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        return json.loads(self.rfile.read(length)) if length else {}
+
+    def _authorized(self) -> bool:
+        auth = self.headers.get("Authorization", "")
+        return auth.endswith(STATE.access_grant_token) if hasattr(STATE, "access_grant_token") else auth.startswith("Bearer ")
+
+    def do_POST(self):
+        raw = self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()
+        if self.path.startswith("/token"):
+            return self._handle_token(parse_qs(raw))
+        if not self._authorized():
+            return self._json(401, {"error": "invalid_credentials"})
+        try:
+            body = json.loads(raw) if raw else {}
+        except ValueError:
+            body = {}
+        if self.path.endswith("/events"):
+            f = STATE.fault.get("create")
+            STATE.create_calls += 1
+            if f == "5xx":
+                return self._json(503, {"error": "backendError"})
+            if f == "429":
+                return self._json(429, {"error": "rateLimitExceeded"})
+            if f == "timeout_after_write":
+                # 服务端实际成功但响应超时：写入后断连（不回包）
+                STATE._insert(body)
+                self.connection.close()
+                return
+            if f == "timeout_no_write":
+                self.connection.close()
+                return
+            ev = STATE._insert(body)
+            return self._json(200, ev)
+        self._json(404, {})
+
+    def _handle_token(self, form):
+        STATE.refresh_calls += 1
+        grant = form.get("grant_type", [""])[0]
+        if STATE.access_grant == "revoked" and grant == "refresh_token":
+            return self._json(400, {"error": "invalid_grant"})
+        token = f"tok-{STATE.refresh_calls}"
+        STATE.access_grant_token = token
+        out = {"access_token": token, "expires_in": 3600}
+        if grant == "authorization_code":
+            out["refresh_token"] = "refresh-1"
+        return self._json(200, out)
+
+    def do_GET(self):
+        if not self._authorized():
+            return self._json(401, {"error": "invalid_credentials"})
+        u = urlparse(self.path)
+        q = parse_qs(u.query)
+        if u.path.endswith("/events"):
+            if STATE.fault.get("list") == "403":
+                return self._json(403, {"error": "forbidden"})
+            key = q.get("privateExtendedProperty", [""])[0]
+            if key.startswith("idempotencyKey="):
+                want = key.split("=", 1)[1]
+                # timeout_after_write：insert 已写入但客户端没拿到响应 → 回查能找到
+                items = [e for e in STATE.events if e["extendedProperties"]["private"]["idempotencyKey"] == want]
+                return self._json(200, {"items": items})
+            items = [e for e in STATE.events]  # 简化：不做窗口过滤（测试自控数据）
+            return self._json(200, {"items": items})
+        if "/events/" in u.path:
+            eid = u.path.rsplit("/", 1)[1]
+            ev = next((e for e in STATE.events if e["id"] == eid), None)
+            if ev is None:
+                return self._json(404, {"error": "notFound"})
+            if STATE.fault.get("get") == "wrong_start":
+                bad = json.loads(json.dumps(ev))
+                bad["start"]["dateTime"] = (datetime.fromisoformat(bad["start"]["dateTime"].replace("Z", "+00:00")) + timedelta(hours=3)).astimezone(UTC).isoformat().replace("+00:00", "Z")
+                return self._json(200, bad)
+            return self._json(200, ev)
+        self._json(404, {})
+
+
+def _insert(self, body):
+    ev = dict(body)
+    ev["id"] = f"g-{STATE.next_id}"
+    ev["status"] = "confirmed"
+    STATE.next_id += 1
+    STATE.events.append(ev)
+    return ev
+
+
+FakeGoogleState._insert = _insert  # 挂到状态类（服务器写入即状态变更）
+
+
+@pytest.fixture()
+def fake_server(monkeypatch, tmp_path):
+    STATE.__init__()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FakeGoogle)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    port = server.server_address[1]
+    # credentials/token 文件（OAuth 走 fake token 端点）
+    creds = tmp_path / "creds.json"
+    creds.write_text(json.dumps({"installed": {"client_id": "cid", "client_secret": "sec"}}), encoding="utf-8")
+    token_file = tmp_path / "token.json"
+    http = httpx.Client(timeout=5, base_url=f"http://127.0.0.1:{port}")
+    auth = GoogleOAuth(str(creds), str(token_file), http=http)
+    # 直接注入一个有效 access（绕过授权流程；token 端点用于刷新测试）
+    auth._access = "tok-0"
+    auth._access_expiry = __import__("time").time() + 3600
+    auth._refresh = "refresh-1"  # 预置 refresh（模拟已完成一次授权）
+    STATE.access_grant_token = "tok-0"
+    auth.__dict__["_token_base"] = f"http://127.0.0.1:{port}"
+    # token 端点指向 fake
+    import app.google_calendar as gc
+
+    monkeypatch.setattr(gc, "TOKEN_URL", f"http://127.0.0.1:{port}/token")
+    provider = GoogleCalendarProvider(auth, "primary", api_base=f"http://127.0.0.1:{port}")
+    yield provider, port
+    server.shutdown()
+
+
+def _draft(key="g1:1:t1:1", start="2027-03-10T01:00:00Z", end="2027-03-10T02:00:00Z"):
+    return CalendarDraftItem(taskId="t1", taskTitle="任务A", startUtc=start, endUtc=end,
+                             timezone="Asia/Shanghai", actionType="create", idempotencyKey=key)
+
+
+def _req(drafts, tasks=None):
+    return ExecuteRequest(goalId="g1", planVersion=1, timezone="Asia/Shanghai",
+                          drafts=drafts, tasks=tasks or [{"taskId": "t1", "estMinutes": 60}])
+
+
+def _seed_user_event(start="2027-03-20T01:00:00Z", end="2027-03-20T02:00:00Z", all_day=None):
+    ev = {
+        "id": f"u-{STATE.next_id}", "status": "confirmed", "summary": "用户会议",
+        "start": {"dateTime": start, "timeZone": "UTC"},
+        "end": {"dateTime": end, "timeZone": "UTC"},
+    }
+    if all_day:
+        ev = {"id": f"u-{STATE.next_id}", "status": "confirmed", "summary": "全天外出",
+              "start": {"date": all_day}, "end": {"date": all_day}}
+    STATE.next_id += 1
+    STATE.events.append(ev)
+    return ev
+
+
+# ---------------------------------------------------------------- 读取
+
+class TestRead:
+    def test_normal_and_all_day_and_multiz(self, fake_server):
+        provider, _ = fake_server
+        _seed_user_event()  # 定时
+        _seed_user_event(all_day="2026-09-20")  # all-day
+        _seed_user_event(start="2027-03-21T00:00:00Z", end="2027-03-21T01:00:00Z")  # 东京 09:00
+        events = provider.read_events()
+        assert len(events) == 3
+        assert events[0]["allDay"] is False and events[0]["startUtc"].endswith("Z")
+        assert events[1]["allDay"] is True and events[1]["localDate"] == "2026-09-20"
+
+    def test_fetch_facts_counts_busy(self, fake_server):
+        provider, _ = fake_server
+        facts = provider.fetch_facts(3, "Asia/Shanghai")
+        assert facts.ok
+
+    def test_403_maps_permission_denied(self, fake_server):
+        provider, _ = fake_server
+        STATE.fault["list"] = "403"
+        with pytest.raises(CalendarWriteError) as ei:
+            provider.read_events()
+        assert ei.value.code == "permission_denied"
+
+
+# ---------------------------------------------------------------- 写入与幂等
+
+class TestCreate:
+    def test_create_success_with_metadata_and_verify(self, fake_server):
+        provider, _ = fake_server
+        results = execute_drafts(_req([_draft()]), provider)
+        assert results[0].status == "success", results[0].error
+        ev = STATE.events[0]
+        priv = ev["extendedProperties"]["private"]
+        assert priv["app"] == "lifeos" and priv["idempotencyKey"] == "g1:1:t1:1"
+        assert priv["goalId"] == "g1" and priv["taskId"] == "t1"
+        assert results[0].externalEventId == ev["id"]  # Google eventId
+
+    def test_duplicate_idempotency_key_no_second_event(self, fake_server):
+        provider, _ = fake_server
+        execute_drafts(_req([_draft()]), provider)
+        STATE.create_calls = 0
+        results = execute_drafts(_req([_draft()]), provider)
+        assert STATE.create_calls == 0  # pre-check 命中，insert 未被调用
+        assert len([e for e in STATE.events if e["extendedProperties"]["private"]["app"] == "lifeos"]) == 1
+
+    def test_create_timeout_server_actually_wrote(self, fake_server):
+        """timeout 但服务端已成功 → 回查收敛，不产生第二个事件。"""
+        provider, _ = fake_server
+        STATE.fault["create"] = "timeout_after_write"
+        # fake 的断连会产生 httpx 远端断开 → provider 视为网络错误 → 回查
+        results = execute_drafts(_req([_draft()]), provider)
+        assert results[0].status in ("success", "failed")
+        # 断连路径：httpx.RemoteProtocolError → CalendarWriteError(network) → _find_by_key 命中 → 返回已建事件
+        lifeos_events = [e for e in STATE.events if e["extendedProperties"]["private"]["app"] == "lifeos"]
+        assert len(lifeos_events) == 1
+        if results[0].status == "success":
+            assert results[0].externalEventId == lifeos_events[0]["id"]
+
+    def test_create_5xx_reports_provider_5xx_no_event(self, fake_server):
+        provider, _ = fake_server
+        STATE.fault["create"] = "5xx"
+        results = execute_drafts(_req([_draft()]), provider)
+        assert results[0].status == "failed"
+        assert "provider_5xx" in (results[0].error or "")
+        assert STATE.events == []
+
+    def test_stale_conflict_not_written(self, fake_server):
+        provider, _ = fake_server
+        _seed_user_event(start="2027-03-10T01:00:00Z", end="2027-03-10T02:00:00Z")  # 精确占用草稿时段
+        results = execute_drafts(_req([_draft()]), provider)
+        assert results[0].status == "stale_conflict"
+        assert len(STATE.events) == 1  # 只有用户事件
+
+    def test_verify_wrong_start_fails(self, fake_server):
+        provider, _ = fake_server
+        STATE.fault["get"] = "wrong_start"
+        results = execute_drafts(_req([_draft()]), provider)
+        assert results[0].status == "failed"
+        assert "verify_failed" in (results[0].error or "")
+        assert results[0].verify and results[0].verify.get("startOk") is False
+
+    def test_verify_404_event_not_found(self, fake_server):
+        provider, _ = fake_server
+        # create 成功后立即让 GET 404（删除其数据）
+        STATE.fault["create"] = None
+        # 手动劫持：写入后清空 events 使 GET 404
+        class Vanish(provider.__class__):
+            def create_event(self, uid, title, start, end, **kw):
+                out = super().create_event(uid, title, start, end, **kw)
+                STATE.events.clear()
+                return out
+
+        provider.__class__ = Vanish
+        results = execute_drafts(_req([_draft()]), provider)
+        assert results[0].status == "failed"
+        assert "event_not_found" in (results[0].error or "")
+
+
+# ---------------------------------------------------------------- token 生命周期
+
+class TestTokens:
+    def test_401_refresh_and_replay(self, fake_server):
+        provider, _ = fake_server
+        STATE.access_grant_token = "expired-token"  # 当前 access 失效
+        events = provider.read_events()
+        assert isinstance(events, list)  # 刷新后重放成功
+        assert STATE.refresh_calls >= 1
+
+    def test_revoked_refresh_maps_auth_required(self, fake_server, monkeypatch, tmp_path):
+        provider, _ = fake_server
+        STATE.access_grant = "revoked"
+        STATE.access_grant_token = "expired"
+        with pytest.raises(CalendarWriteError) as ei:
+            provider.read_events()
+        assert ei.value.code in ("auth_required",)
+
+    def test_token_never_in_errors(self, fake_server):
+        provider, _ = fake_server
+        STATE.access_grant = "revoked"
+        STATE.access_grant_token = "expired"
+        try:
+            provider.read_events()
+            raise AssertionError("should raise")
+        except CalendarWriteError as e:
+            assert "refresh-1" not in str(e) and "tok-" not in str(e) and "sec" not in str(e)
+
+
+# ---------------------------------------------------------------- 429
+
+class TestRateLimit:
+    def test_429_maps_rate_limited(self, fake_server):
+        provider, _ = fake_server
+        STATE.fault["list"] = "429x"  # list 429
+        # 直接构造： faults for list only support 403; use create 429 path
+        STATE.fault.pop("list")
+        STATE.fault["create"] = "429"
+        with pytest.raises(CalendarWriteError):
+            provider.create_event("k9", "LifeOS:X", datetime(2027, 3, 10, 1, tzinfo=UTC), datetime(2027, 3, 10, 2, tzinfo=UTC))

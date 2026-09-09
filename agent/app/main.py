@@ -53,11 +53,51 @@ def get_github_dep() -> HttpGithubClient:
 
 
 def get_calendar_dep() -> CalendarClient | None:
-    """Calendar 只读工具（Phase 5）。CAL_ICS_PATH 未配置时返回 None = 工具停用（完全保持现有行为）。"""
+    """Calendar 只读工具。CALENDAR_PROVIDER=google 时用 Google；ics 需 CAL_ICS_PATH；
+    未配置 = 工具停用（完全保持现有行为）。"""
     import os
 
+    provider = os.environ.get("CALENDAR_PROVIDER", "ics")
+    if provider == "google":
+        from .google_calendar import GoogleCalendarProvider
+
+        gp = _google_provider()
+        if gp is not None:
+            return gp
+        return None
     path = os.environ.get("CAL_ICS_PATH", "")
     return IcsCalendarClient(path) if path else None
+
+
+_google: "GoogleCalendarProvider | None" = None
+
+
+def _google_provider():
+    """Google Provider 单例（OAuth + calendarId）。凭据缺失时返回 None（工具停用，不崩）。"""
+    global _google
+    import os
+
+    if _google is None:
+        creds = os.environ.get("GOOGLE_CREDENTIALS_FILE", "")
+        if not creds:
+            return None
+        from .google_calendar import GoogleCalendarProvider, GoogleOAuth
+
+        auth = GoogleOAuth(creds, os.environ.get("GOOGLE_TOKEN_FILE", ".google-token.json"))
+        _google = GoogleCalendarProvider(auth, os.environ.get("GOOGLE_CALENDAR_ID", "primary"))
+    return _google
+
+
+def _write_provider():
+    """执行器写目标：CALENDAR_PROVIDER=google → Google；否则 ICS。"""
+    import os
+
+    if os.environ.get("CALENDAR_PROVIDER") == "google":
+        gp = _google_provider()
+        if gp is not None:
+            return gp, "google"
+        raise AgentError("auth_required", "CALENDAR_PROVIDER=google 但缺少 GOOGLE_CREDENTIALS_FILE", status_code=503, retryable=False)
+    return IcsWriteProvider(), "ics"
 
 
 def error_body(code: str, message: str, retryable: bool) -> dict:
@@ -112,12 +152,12 @@ def calendar_drafts(req: DraftBuildRequest, calendar: CalendarClient | None = De
 
 @app.post("/v1/calendar/execute", response_model=ExecuteResponse)
 def calendar_execute(req: ExecuteRequest):
-    """执行用户已确认的草稿：幂等复检 → 冲突复检（Instant）→ CREATE（UTC Z）→ Verify（Instant）。"""
-    provider = IcsWriteProvider()
-    if not provider.path:
+    """执行用户已确认的草稿：幂等复检 → 冲突复检（Instant）→ CREATE（幂等协议）→ Verify。"""
+    provider, name = _write_provider()
+    if name == "ics" and not provider.path:  # type: ignore[attr-defined]
         raise AgentError("CAL_AUTH_INVALID", "未配置 CAL_ICS_PATH（写目标缺失）", status_code=503, retryable=False)
     results = execute_drafts(req, provider)
-    return ExecuteResponse(results=results, provider=provider.provider_name)
+    return ExecuteResponse(results=results, provider=name)
 
 
 @app.get("/health")

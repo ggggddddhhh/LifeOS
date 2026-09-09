@@ -266,7 +266,10 @@ def execute_drafts(req: ExecuteRequest, provider: CalendarWriteProvider) -> list
 
         start = datetime.fromisoformat(d.startUtc.replace("Z", "+00:00"))
         end = datetime.fromisoformat(d.endUtc.replace("Z", "+00:00"))
-        uid = make_uid(req.goalId, req.planVersion, d.taskId, int(d.idempotencyKey.split(":")[3]))
+        ics_uid = make_uid(req.goalId, req.planVersion, d.taskId, int(d.idempotencyKey.split(":")[3]))
+        # Google Provider 用草稿幂等键做外部防重复（privateExtendedProperty 查询语义）；
+        # ICS 用 lifeos UID。两者都唯一且可回溯。
+        uid = d.idempotencyKey if hasattr(provider, "verify_event") else ics_uid
 
         # 幂等：UID 已存在 → 跳过
         if any(u == uid for u in [e["uid"] for e in existing]):
@@ -288,8 +291,17 @@ def execute_drafts(req: ExecuteRequest, provider: CalendarWriteProvider) -> list
             ))
             continue
 
+        metadata = {
+            "goalId": req.goalId, "planVersion": req.planVersion, "taskId": d.taskId,
+            "idempotencyKey": uid, "timezone": d.timezone,
+        }
+        created: dict | None = None
         try:
-            provider.create_event(uid, f"{TITLE_PREFIX}{d.taskTitle}", start, end)
+            try:
+                # Google Provider：幂等 CREATE 协议（pre-check→insert→异常回查），返回事件体
+                created = provider.create_event(uid, f"{TITLE_PREFIX}{d.taskTitle}", start, end, metadata=metadata)  # type: ignore[call-arg]
+            except TypeError:
+                provider.create_event(uid, f"{TITLE_PREFIX}{d.taskTitle}", start, end)  # ICS 等简单 provider
         except CalendarWriteError as e:
             results.append(ExecuteResultItem(idempotencyKey=d.idempotencyKey, status="failed", error=f"{e.code}: {e}"))
             continue
@@ -297,23 +309,43 @@ def execute_drafts(req: ExecuteRequest, provider: CalendarWriteProvider) -> list
             results.append(ExecuteResultItem(idempotencyKey=d.idempotencyKey, status="failed", error=f"CAL_SERVER: {type(e).__name__}: {e}"))
             continue
 
-        # Verify：回读，Instant 比较
-        after = provider.read_events()
-        mine = [
-            (datetime.fromisoformat(e["startUtc"].replace("Z", "+00:00")), datetime.fromisoformat(e["endUtc"].replace("Z", "+00:00")))
-            for e in after if e["uid"] == uid
-        ]
-        verify = {
-            "found": len(mine) == 1,
-            "startOk": bool(mine) and mine[0][0] == start,
-            "endOk": bool(mine) and mine[0][1] == end,
-            "unique": len(mine) == 1,
-        }
-        status = "success" if all(verify.values()) else "failed"
+        # Verify：Google Provider 用 GET 回读（Instant+calendarId+metadata 全检）；
+        # 其余 provider 走 read_events 比对（uid 即 externalEventId）
+        verify: dict
+        external_id: str | None
+        if created is not None and hasattr(provider, "verify_event"):
+            external_id = created.get("id")
+            try:
+                if not external_id:
+                    raise CalendarWriteError("verify_failed", "创建响应缺少事件 id")
+                provider.verify_event(external_id, expect_start=start, expect_end=end, metadata=metadata)  # type: ignore[attr-defined]
+                verify = {"found": True, "startOk": True, "endOk": True, "unique": True}
+            except CalendarWriteError as e:
+                results.append(ExecuteResultItem(
+                    idempotencyKey=d.idempotencyKey, status="failed", externalEventId=external_id,
+                    verify={"found": e.code != "event_not_found", "startOk": False, "endOk": False, "unique": True},
+                    error=f"{e.code}: {e}",
+                ))
+                continue
+        else:
+            after = provider.read_events()
+            mine = [
+                (datetime.fromisoformat(e["startUtc"].replace("Z", "+00:00")), datetime.fromisoformat(e["endUtc"].replace("Z", "+00:00")))
+                for e in after if e["uid"] == uid
+            ]
+            verify = {
+                "found": len(mine) == 1,
+                "startOk": bool(mine) and mine[0][0] == start,
+                "endOk": bool(mine) and mine[0][1] == end,
+                "unique": len(mine) == 1,
+            }
+            external_id = uid if verify["found"] else None
+            existing = after
         results.append(ExecuteResultItem(
-            idempotencyKey=d.idempotencyKey, status=status, externalEventId=uid if verify["found"] else None,
-            verify=verify,
-            error=None if status == "success" else f"CAL_SERVER: Verify 失败 {verify}",
+            idempotencyKey=d.idempotencyKey, status="success" if all(verify.values()) else "failed",
+            externalEventId=external_id, verify=verify,
+            error=None if all(verify.values()) else f"CAL_SERVER: Verify 失败 {verify}",
         ))
-        existing = after
+        if created is not None and hasattr(provider, "verify_event"):
+            existing = provider.read_events()  # 后续草稿冲突复检基于最新状态
     return results
