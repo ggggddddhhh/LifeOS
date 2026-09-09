@@ -1,342 +1,537 @@
 {
   "model": "deepseek-chat",
-  "ranAt": "2026-09-09T00:16:00.703Z",
+  "ranAt": "2026-09-09T00:34:41.776Z",
   "records": [
     {
       "goal": "两周内上线个人博客网站",
       "scenario": "正常进度",
       "daysLeft": 8,
       "ok": true,
-      "latencyMs": 1077,
+      "latencyMs": 2464,
       "prevOpenCount": 5,
-      "reason": "剩余4个任务共360分钟，远低于8天×480分钟预算，但为保持紧凑节奏并预留缓冲，按原优先级保留全部任务，未砍减。",
+      "reason": "剩余8天共3840分钟，未完成任务总估时570分钟，可全部保留。按依赖与优先级重排：编写文章→配置域名→SEO优化→功能测试→最终上线，压缩周期至9月17日完成。",
       "reasonMeaningful": true,
       "tasks": [
         {
-          "title": "部署到 Vercel 并连接仓库",
-          "priority": 1,
-          "estMinutes": 60
-        },
-        {
-          "title": "测试与上线前检查",
-          "priority": 1,
-          "estMinutes": 90
-        },
-        {
-          "title": "优化 SEO 与性能",
+          "title": "编写并导入首批文章内容",
           "priority": 2,
-          "estMinutes": 90
+          "estMinutes": 180,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-14"
         },
         {
-          "title": "编写并填充示例内容",
-          "priority": 2,
-          "estMinutes": 120
-        }
-      ],
-      "taskCount": 4,
-      "duplicateTitles": [],
-      "doneTitlesLeaked": [],
-      "priorityRangeOk": true,
-      "minutesPerDay": 45,
-      "overload": false,
-      "compression": 0.92
-    },
-    {
-      "goal": "两周内上线个人博客网站",
-      "scenario": "延期",
-      "daysLeft": 2,
-      "ok": true,
-      "latencyMs": 1191,
-      "prevOpenCount": 6,
-      "reason": "剩余2天共960分钟，未完成任务需约690分钟可容纳，但需压缩低优先级任务以留缓冲，放弃部分SEO优化与示例内容扩展",
-      "reasonMeaningful": true,
-      "tasks": [
-        {
-          "title": "开发博客核心页面",
+          "title": "配置域名与Vercel部署",
           "priority": 1,
-          "estMinutes": 300
+          "estMinutes": 90,
+          "startDate": "2026-09-14",
+          "dueDate": "2026-09-15",
+          "dependsOn": [
+            "编写并导入首批文章内容"
+          ]
         },
         {
-          "title": "部署到 Vercel 并连接仓库",
-          "priority": 1,
-          "estMinutes": 60
-        },
-        {
-          "title": "配置域名与 DNS",
+          "title": "优化SEO与性能",
           "priority": 2,
-          "estMinutes": 30
+          "estMinutes": 120,
+          "startDate": "2026-09-15",
+          "dueDate": "2026-09-16",
+          "dependsOn": [
+            "配置域名与Vercel部署"
+          ]
         },
         {
-          "title": "测试与上线前检查",
-          "priority": 1,
-          "estMinutes": 90
-        },
-        {
-          "title": "编写并填充示例内容",
+          "title": "功能测试与跨浏览器检查",
           "priority": 2,
-          "estMinutes": 60
+          "estMinutes": 120,
+          "startDate": "2026-09-16",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "优化SEO与性能"
+          ]
         },
         {
-          "title": "优化 SEO 与性能",
-          "priority": 3,
-          "estMinutes": 30
-        }
-      ],
-      "taskCount": 6,
-      "duplicateTitles": [],
-      "doneTitlesLeaked": [],
-      "priorityRangeOk": true,
-      "minutesPerDay": 285,
-      "overload": false,
-      "compression": 0.83
-    },
-    {
-      "goal": "两周内上线个人博客网站",
-      "scenario": "部分完成",
-      "daysLeft": 5,
-      "ok": true,
-      "latencyMs": 1162,
-      "prevOpenCount": 2,
-      "reason": "已完成核心开发与部署，剩余2项任务共需210分钟，远低于5天×480分钟预算，按原计划执行即可。",
-      "reasonMeaningful": true,
-      "tasks": [
-        {
-          "title": "编写并填充示例内容",
-          "priority": 2,
-          "estMinutes": 120
-        },
-        {
-          "title": "测试与上线前检查",
+          "title": "最终上线与验收",
           "priority": 1,
-          "estMinutes": 90
-        }
-      ],
-      "taskCount": 2,
-      "duplicateTitles": [],
-      "doneTitlesLeaked": [],
-      "priorityRangeOk": true,
-      "minutesPerDay": 42,
-      "overload": false,
-      "compression": 1
-    },
-    {
-      "goal": "100 天内雅思总分考到 6.5",
-      "scenario": "正常进度",
-      "daysLeft": 8,
-      "ok": true,
-      "latencyMs": 1449,
-      "prevOpenCount": 4,
-      "reason": "剩余8天共3840分钟，原计划未完成任务需约375分钟/天，超出每日480分钟上限，故合并口语与写作训练为综合冲刺，并砍掉每周模拟考试（改为每日小测），优先保障高优先级任务。",
-      "reasonMeaningful": true,
-      "tasks": [
-        {
-          "title": "阅读专项训练（每日1小时）",
-          "priority": 2,
-          "estMinutes": 480
-        },
-        {
-          "title": "口语+写作综合冲刺（每日2小时，含模板与真题演练）",
-          "priority": 1,
-          "estMinutes": 600
-        },
-        {
-          "title": "每日词汇与听力巩固（每日1小时）",
-          "priority": 1,
-          "estMinutes": 480
-        },
-        {
-          "title": "每日模拟小测与错题复盘（每日1小时）",
-          "priority": 2,
-          "estMinutes": 480
-        }
-      ],
-      "taskCount": 4,
-      "duplicateTitles": [],
-      "doneTitlesLeaked": [],
-      "priorityRangeOk": true,
-      "minutesPerDay": 255,
-      "overload": false,
-      "compression": 5.44
-    },
-    {
-      "goal": "100 天内雅思总分考到 6.5",
-      "scenario": "延期",
-      "daysLeft": 2,
-      "ok": true,
-      "latencyMs": 1314,
-      "prevOpenCount": 6,
-      "reason": "剩余2天仅960分钟，无法覆盖全部任务，砍掉低优先级听力/阅读/周模拟，合并为每日核心冲刺，聚焦口语写作弱项与词汇语法",
-      "reasonMeaningful": true,
-      "tasks": [
-        {
-          "title": "每日词汇与语法+口语强化",
-          "priority": 1,
-          "estMinutes": 240
-        },
-        {
-          "title": "写作专项提升（大作文+小作文）",
-          "priority": 1,
-          "estMinutes": 240
-        },
-        {
-          "title": "综合模考与弱项复盘",
-          "priority": 2,
-          "estMinutes": 240
-        }
-      ],
-      "taskCount": 3,
-      "duplicateTitles": [],
-      "doneTitlesLeaked": [],
-      "priorityRangeOk": true,
-      "minutesPerDay": 360,
-      "overload": false,
-      "compression": 1.45
-    },
-    {
-      "goal": "100 天内雅思总分考到 6.5",
-      "scenario": "部分完成",
-      "daysLeft": 5,
-      "ok": true,
-      "latencyMs": 1643,
-      "prevOpenCount": 2,
-      "reason": "剩余5天共2400分钟，原任务中写作90分钟和模考180分钟未完成，但需压缩至2400分钟内；写作提升优先保留，模考拆分为2次各120分钟并砍掉一次复盘，总耗时330分钟远低于预算，其余时间用于每日巩固。",
-      "reasonMeaningful": true,
-      "tasks": [
-        {
-          "title": "写作专项提升（完成当前任务）",
-          "priority": 1,
-          "estMinutes": 90
-        },
-        {
-          "title": "模拟考试1（含复盘）",
-          "priority": 2,
-          "estMinutes": 120
-        },
-        {
-          "title": "模拟考试2（含复盘）",
-          "priority": 2,
-          "estMinutes": 120
-        }
-      ],
-      "taskCount": 3,
-      "duplicateTitles": [],
-      "doneTitlesLeaked": [],
-      "priorityRangeOk": true,
-      "minutesPerDay": 66,
-      "overload": false,
-      "compression": 1.22
-    },
-    {
-      "goal": "两周内完成跨城搬家并安顿好新家",
-      "scenario": "正常进度",
-      "daysLeft": 8,
-      "ok": true,
-      "latencyMs": 1069,
-      "prevOpenCount": 5,
-      "reason": "剩余8天共3840分钟，未完成任务总计1650分钟，可全部排入；按优先级与依赖顺序重排，确保搬家执行前完成打包与地址变更。",
-      "reasonMeaningful": true,
-      "tasks": [
-        {
-          "title": "打包整理所有物品",
-          "priority": 1,
-          "estMinutes": 600
-        },
-        {
-          "title": "办理地址变更与生活服务迁移",
-          "priority": 2,
-          "estMinutes": 90
-        },
-        {
-          "title": "执行搬家并监督搬运过程",
-          "priority": 1,
-          "estMinutes": 300
-        },
-        {
-          "title": "新家清洁与物品归位",
-          "priority": 2,
-          "estMinutes": 480
-        },
-        {
-          "title": "安顿周边生活并熟悉社区",
-          "priority": 3,
-          "estMinutes": 180
+          "estMinutes": 60,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "功能测试与跨浏览器检查"
+          ]
         }
       ],
       "taskCount": 5,
       "duplicateTitles": [],
       "doneTitlesLeaked": [],
       "priorityRangeOk": true,
-      "minutesPerDay": 206,
+      "minutesPerDay": 71,
       "overload": false,
-      "compression": 1
+      "compression": 1,
+      "addedCount": 0,
+      "removedCount": 0,
+      "keptCount": 5,
+      "estDelta": 0,
+      "rawTaskCount": 5
     },
     {
-      "goal": "两周内完成跨城搬家并安顿好新家",
+      "goal": "两周内上线个人博客网站",
       "scenario": "延期",
       "daysLeft": 2,
       "ok": true,
-      "latencyMs": 1414,
+      "latencyMs": 2259,
       "prevOpenCount": 6,
-      "reason": "剩余2天共960分钟，原未完成任务需1410分钟，超时450分钟；砍掉低优先级‘安顿周边生活并熟悉社区’，并将‘打包整理’与‘执行搬家’合并为‘打包并完成搬家’以压缩交接时间，同时将清洁归位压缩至240分钟。",
+      "reason": "剩余2天（共960分钟），原未完成任务总估时810分钟超限。合并低优先级任务：将编写文章并入列表页实现（内容可先用占位），放弃SEO优化与跨浏览器检查（上线后迭代），最终上线并入部署验收。",
       "reasonMeaningful": true,
       "tasks": [
         {
-          "title": "处理旧居退租与押金事宜",
+          "title": "实现博客文章列表与详情页",
           "priority": 1,
-          "estMinutes": 120
+          "estMinutes": 240,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-11"
         },
         {
-          "title": "打包并完成搬家（含打包、搬运监督）",
+          "title": "编写并导入首批文章内容",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-11",
+          "dependsOn": [
+            "实现博客文章列表与详情页"
+          ]
+        },
+        {
+          "title": "配置域名与Vercel部署",
           "priority": 1,
-          "estMinutes": 480
+          "estMinutes": 90,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-11",
+          "dependsOn": [
+            "实现博客文章列表与详情页"
+          ]
         },
         {
-          "title": "办理地址变更与生活服务迁移",
-          "priority": 2,
-          "estMinutes": 90
-        },
-        {
-          "title": "新家清洁与物品归位",
-          "priority": 2,
-          "estMinutes": 240
+          "title": "功能测试与最终上线验收",
+          "priority": 1,
+          "estMinutes": 120,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-11",
+          "dependsOn": [
+            "配置域名与Vercel部署",
+            "编写并导入首批文章内容"
+          ]
         }
       ],
       "taskCount": 4,
       "duplicateTitles": [],
       "doneTitlesLeaked": [],
       "priorityRangeOk": true,
-      "minutesPerDay": 465,
+      "minutesPerDay": 285,
       "overload": false,
-      "compression": 0.53
+      "compression": 0.7,
+      "addedCount": 1,
+      "removedCount": 3,
+      "keptCount": 3,
+      "estDelta": -240,
+      "rawTaskCount": 4
     },
     {
-      "goal": "两周内完成跨城搬家并安顿好新家",
+      "goal": "两周内上线个人博客网站",
       "scenario": "部分完成",
       "daysLeft": 5,
       "ok": true,
-      "latencyMs": 1091,
+      "latencyMs": 1117,
       "prevOpenCount": 2,
-      "reason": "剩余5天共2400分钟可用，未完成任务仅660分钟，时间充裕；保留全部任务并适当增加清洁归位与社区熟悉时间以提升安顿质量。",
+      "reason": "所有任务均已完成或进行中，仅剩功能测试与最终上线两项未完成，剩余5天时间充裕，无需新增或砍减任务，按原计划压缩排期即可。",
       "reasonMeaningful": true,
       "tasks": [
         {
-          "title": "新家清洁与物品归位",
+          "title": "功能测试与跨浏览器检查",
           "priority": 2,
-          "estMinutes": 600
+          "estMinutes": 120,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-12"
         },
         {
-          "title": "安顿周边生活并熟悉社区",
-          "priority": 3,
-          "estMinutes": 240
+          "title": "最终上线与验收",
+          "priority": 1,
+          "estMinutes": 60,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-14",
+          "dependsOn": [
+            "功能测试与跨浏览器检查"
+          ]
         }
       ],
       "taskCount": 2,
       "duplicateTitles": [],
       "doneTitlesLeaked": [],
       "priorityRangeOk": true,
-      "minutesPerDay": 168,
+      "minutesPerDay": 36,
       "overload": false,
-      "compression": 1.27
+      "compression": 1,
+      "addedCount": 0,
+      "removedCount": 0,
+      "keptCount": 2,
+      "estDelta": 0,
+      "rawTaskCount": 2
+    },
+    {
+      "goal": "100 天内雅思总分考到 6.5",
+      "scenario": "正常进度",
+      "daysLeft": 8,
+      "ok": true,
+      "latencyMs": 2599,
+      "prevOpenCount": 5,
+      "reason": "剩余8天，总可用4800分钟。原计划中每日/每周任务跨度过大且部分重复，现压缩为每日综合训练（含听力、口语、写作）与两次模考冲刺，放弃长期词汇语法积累和每周独立写作批改，合并进每日综合训练中。",
+      "reasonMeaningful": true,
+      "tasks": [
+        {
+          "title": "每日听力精听训练",
+          "priority": 2,
+          "estMinutes": 30,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-17"
+        },
+        {
+          "title": "每日口语跟读与话题练习",
+          "priority": 1,
+          "estMinutes": 40,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-17"
+        },
+        {
+          "title": "每日综合训练（词汇语法+写作批改+范文学习）",
+          "priority": 1,
+          "estMinutes": 90,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-17"
+        },
+        {
+          "title": "第一次模拟考试与复盘",
+          "priority": 1,
+          "estMinutes": 180,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "每日听力精听训练",
+            "每日口语跟读与话题练习",
+            "每日综合训练（词汇语法+写作批改+范文学习）"
+          ]
+        },
+        {
+          "title": "第二次模拟考试与复盘",
+          "priority": 1,
+          "estMinutes": 180,
+          "startDate": "2026-09-16",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "第一次模拟考试与复盘"
+          ]
+        },
+        {
+          "title": "考前冲刺与弱项强化",
+          "priority": 1,
+          "estMinutes": 240,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "第二次模拟考试与复盘"
+          ]
+        }
+      ],
+      "taskCount": 6,
+      "duplicateTitles": [],
+      "doneTitlesLeaked": [],
+      "priorityRangeOk": true,
+      "minutesPerDay": 95,
+      "overload": false,
+      "compression": 1.25,
+      "addedCount": 3,
+      "removedCount": 2,
+      "keptCount": 3,
+      "estDelta": 150,
+      "rawTaskCount": 6
+    },
+    {
+      "goal": "100 天内雅思总分考到 6.5",
+      "scenario": "延期",
+      "daysLeft": 2,
+      "ok": true,
+      "latencyMs": 2485,
+      "prevOpenCount": 6,
+      "reason": "仅剩2天，总可用时间960分钟，原计划为长期备考任务无法完成。压缩为每日综合训练（词汇语法+听力+口语合并为2小时/天），放弃写作批改、模拟考试和考前冲刺等无法在2天内完成的任务，保留核心弱项（口语/听力）训练。",
+      "reasonMeaningful": true,
+      "tasks": [
+        {
+          "title": "每日词汇与语法积累",
+          "priority": 2,
+          "estMinutes": 45,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-11"
+        },
+        {
+          "title": "每日听力精听训练",
+          "priority": 2,
+          "estMinutes": 30,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-11"
+        },
+        {
+          "title": "每日口语跟读与话题练习",
+          "priority": 1,
+          "estMinutes": 40,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-11"
+        },
+        {
+          "title": "每日综合弱项强化（口语+听力）",
+          "priority": 1,
+          "estMinutes": 120,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-11",
+          "dependsOn": [
+            "每日词汇与语法积累",
+            "每日听力精听训练",
+            "每日口语跟读与话题练习"
+          ]
+        }
+      ],
+      "taskCount": 4,
+      "duplicateTitles": [],
+      "doneTitlesLeaked": [],
+      "priorityRangeOk": true,
+      "minutesPerDay": 118,
+      "overload": false,
+      "compression": 0.36,
+      "addedCount": 1,
+      "removedCount": 3,
+      "keptCount": 3,
+      "estDelta": -420,
+      "rawTaskCount": 4
+    },
+    {
+      "goal": "100 天内雅思总分考到 6.5",
+      "scenario": "部分完成",
+      "daysLeft": 5,
+      "ok": true,
+      "latencyMs": 2263,
+      "prevOpenCount": 2,
+      "reason": "剩余5天（每天480分钟共2400分钟），原计划中每日/每周任务已标记done但截止日期在12月，实际未完成仅2项。压缩合并为3个冲刺任务：模拟考复盘（原每周模拟考试与复盘）、弱项强化（原考前冲刺与弱项强化，合并口语写作弱项）、考前模考终检（新增必要，因需最终验证）。放弃每日词汇听力等已done任务不再重排。总估时1200分钟≤2400分钟。",
+      "reasonMeaningful": true,
+      "tasks": [
+        {
+          "title": "每周模拟考试与复盘",
+          "priority": 1,
+          "estMinutes": 180,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-11"
+        },
+        {
+          "title": "考前冲刺与弱项强化",
+          "priority": 1,
+          "estMinutes": 600,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-13",
+          "dependsOn": [
+            "每周模拟考试与复盘"
+          ]
+        },
+        {
+          "title": "考前模考终检",
+          "priority": 1,
+          "estMinutes": 420,
+          "startDate": "2026-09-13",
+          "dueDate": "2026-09-14",
+          "dependsOn": [
+            "考前冲刺与弱项强化"
+          ]
+        }
+      ],
+      "taskCount": 3,
+      "duplicateTitles": [],
+      "doneTitlesLeaked": [],
+      "priorityRangeOk": true,
+      "minutesPerDay": 240,
+      "overload": false,
+      "compression": 2.86,
+      "addedCount": 1,
+      "removedCount": 0,
+      "keptCount": 2,
+      "estDelta": 780,
+      "rawTaskCount": 3
+    },
+    {
+      "goal": "两周内完成跨城搬家并安顿好新家",
+      "scenario": "正常进度",
+      "daysLeft": 8,
+      "ok": true,
+      "latencyMs": 2666,
+      "prevOpenCount": 5,
+      "reason": "剩余8天共3840分钟，未完成任务总估时1230分钟可容纳；按依赖关系重排，将退租结算提前至9-17（原deadline），搬家运输9-18，清洁9-19-20，网络9-20，地址变更9-21，压缩安顿收尾至9-21完成，无需砍任务。",
+      "reasonMeaningful": true,
+      "tasks": [
+        {
+          "title": "办理原住址退租与水电煤结算",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17"
+        },
+        {
+          "title": "执行搬家运输",
+          "priority": 1,
+          "estMinutes": 360,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "办理原住址退租与水电煤结算"
+          ]
+        },
+        {
+          "title": "新家清洁与整理",
+          "priority": 2,
+          "estMinutes": 480,
+          "durationDays": 2,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "执行搬家运输"
+          ]
+        },
+        {
+          "title": "开通新家网络与水电服务",
+          "priority": 2,
+          "estMinutes": 90,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "执行搬家运输"
+          ]
+        },
+        {
+          "title": "完成地址变更与安顿收尾",
+          "priority": 3,
+          "estMinutes": 180,
+          "startDate": "2026-09-17",
+          "dueDate": "2026-09-17",
+          "dependsOn": [
+            "新家清洁与整理",
+            "开通新家网络与水电服务"
+          ]
+        }
+      ],
+      "taskCount": 5,
+      "duplicateTitles": [],
+      "doneTitlesLeaked": [],
+      "priorityRangeOk": true,
+      "minutesPerDay": 154,
+      "overload": false,
+      "compression": 1,
+      "addedCount": 0,
+      "removedCount": 0,
+      "keptCount": 5,
+      "estDelta": 0,
+      "rawTaskCount": 5
+    },
+    {
+      "goal": "两周内完成跨城搬家并安顿好新家",
+      "scenario": "延期",
+      "daysLeft": 2,
+      "ok": true,
+      "latencyMs": 2367,
+      "prevOpenCount": 6,
+      "reason": "剩余2天共960分钟，原未完成任务总估时1710分钟严重超限。压缩打包（480→240）、合并退租结算与地址变更（120+180→240）、合并清洁与开通服务（480+90→300）、执行搬家保持360，总计1140仍超限，故砍掉低优先级地址变更中的非必要部分（保留退租结算），最终总估时900分钟。新增无。",
+      "reasonMeaningful": true,
+      "tasks": [
+        {
+          "title": "打包所有物品",
+          "priority": 1,
+          "estMinutes": 240,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-10"
+        },
+        {
+          "title": "办理原住址退租与水电煤结算",
+          "priority": 2,
+          "estMinutes": 120,
+          "startDate": "2026-09-10",
+          "dueDate": "2026-09-10"
+        },
+        {
+          "title": "执行搬家运输",
+          "priority": 1,
+          "estMinutes": 360,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-11",
+          "dependsOn": [
+            "打包所有物品"
+          ]
+        },
+        {
+          "title": "新家清洁与开通网络水电服务",
+          "priority": 2,
+          "estMinutes": 180,
+          "startDate": "2026-09-11",
+          "dueDate": "2026-09-11",
+          "dependsOn": [
+            "执行搬家运输"
+          ]
+        }
+      ],
+      "taskCount": 4,
+      "duplicateTitles": [],
+      "doneTitlesLeaked": [],
+      "priorityRangeOk": true,
+      "minutesPerDay": 450,
+      "overload": false,
+      "compression": 0.53,
+      "addedCount": 1,
+      "removedCount": 3,
+      "keptCount": 3,
+      "estDelta": -810,
+      "rawTaskCount": 4
+    },
+    {
+      "goal": "两周内完成跨城搬家并安顿好新家",
+      "scenario": "部分完成",
+      "daysLeft": 5,
+      "ok": true,
+      "latencyMs": 1336,
+      "prevOpenCount": 2,
+      "reason": "剩余5天共2400分钟，仅剩2个未完成任务共270分钟，远低于容量；保持原任务不变，无需合并或砍减。",
+      "reasonMeaningful": true,
+      "tasks": [
+        {
+          "title": "开通新家网络与水电服务",
+          "priority": 2,
+          "estMinutes": 90,
+          "startDate": "2026-09-14",
+          "dueDate": "2026-09-14"
+        },
+        {
+          "title": "完成地址变更与安顿收尾",
+          "priority": 3,
+          "estMinutes": 180,
+          "startDate": "2026-09-14",
+          "dueDate": "2026-09-14",
+          "dependsOn": [
+            "开通新家网络与水电服务"
+          ]
+        }
+      ],
+      "taskCount": 2,
+      "duplicateTitles": [],
+      "doneTitlesLeaked": [],
+      "priorityRangeOk": true,
+      "minutesPerDay": 54,
+      "overload": false,
+      "compression": 1,
+      "addedCount": 0,
+      "removedCount": 0,
+      "keptCount": 2,
+      "estDelta": 0,
+      "rawTaskCount": 2
     }
   ]
 }

@@ -3,6 +3,7 @@ import {
   budgetMinutes,
   computePlanDiff,
   enforceTaskBudget,
+  enforceTimeBudget,
   sanitizeDependencies,
   sanitizeSchedule,
 } from "@/lib/plan";
@@ -72,6 +73,14 @@ describe("sanitizeSchedule", () => {
     const { deps } = sanitizeDependencies(tasks);
     sanitizeSchedule(tasks, deps, { today, deadline });
     expect(tasks[1].dueDate).toBe("2026-09-20");
+  });
+
+  it("畸形 deadline 回退为今天+14天而不崩溃", () => {
+    const tasks = [task({ title: "A", dueDate: "2030-01-01" })];
+    const { deps } = sanitizeDependencies(tasks);
+    expect(() => sanitizeSchedule(tasks, deps, { today, deadline: "2030-01-01T08:00:00Z" })).not.toThrow();
+    // 回退窗口 = today+14，2030 的日期被钳到窗口右端
+    expect(tasks[0].dueDate).toBe("2026-09-23");
   });
 
   it("依赖链传播：C ≥ B ≥ A", () => {
@@ -163,6 +172,45 @@ describe("computePlanDiff", () => {
     expect(diff.added).toEqual([]);
     expect(diff.removed).toEqual([]);
     expect(diff.changed).toEqual([]); // 无变化则不进 changed
+  });
+});
+
+describe("enforceTimeBudget", () => {
+  it("未超容量原样返回", () => {
+    const { tasks, note } = enforceTimeBudget([task({ title: "A", estMinutes: 300 })], 2);
+    expect(tasks.length).toBe(1);
+    expect(note).toBeNull();
+  });
+
+  it("超容量先砍低优先级且无人依赖的任务", () => {
+    // 2 天 × 480 = 960 容量；总量 1400 超载
+    const { tasks, note } = enforceTimeBudget(
+      [
+        task({ title: "P1核心", priority: 1, estMinutes: 600 }),
+        task({ title: "P2重要", priority: 2, estMinutes: 500 }),
+        task({ title: "P3可选", priority: 3, estMinutes: 300 }),
+      ],
+      2,
+    );
+    const total = tasks.reduce((s, t) => s + t.estMinutes, 0);
+    expect(total).toBeLessThanOrEqual(960);
+    expect(tasks.map((t) => t.title)).not.toContain("P3可选");
+    expect(note).toContain("P3可选");
+  });
+
+  it("全被依赖时按比例压缩估时", () => {
+    // B 依赖 A：A 不能被砍，只剩等比压缩
+    const { tasks, note } = enforceTimeBudget(
+      [
+        task({ title: "A", priority: 1, estMinutes: 800 }),
+        task({ title: "B", priority: 1, estMinutes: 800, dependsOn: ["A"] }),
+      ],
+      1, // 容量 480，总量 1600
+    );
+    expect(tasks.length).toBe(2); // 不删任务
+    const total = tasks.reduce((s, t) => s + t.estMinutes, 0);
+    expect(total).toBeLessThanOrEqual(480 + 30); // 每任务下限 15 可能带来少量超出
+    expect(note).toContain("等比压缩");
   });
 });
 

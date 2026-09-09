@@ -8,7 +8,7 @@ export interface PlannerRecord {
   ok: boolean;
   error?: string;
   latencyMs?: number;
-  tasks?: { title: string; priority: number; estMinutes: number; notes?: string }[];
+  tasks?: { title: string; priority: number; estMinutes: number; notes?: string; startDate?: string; dueDate?: string; durationDays?: number; dependsOn?: string[] }[];
   taskCount?: number;
   duplicateTitles?: string[];
   priorityRangeOk?: boolean;
@@ -17,6 +17,12 @@ export interface PlannerRecord {
   /** 总估时 / 剩余天数 = 日均强度（分钟/天）。>480 分钟/天视为过载 */
   minutesPerDay?: number;
   overload?: boolean;
+  // Phase 2 检查
+  datesInRange?: boolean; // 清洗后（用户所见）所有日期 ∈ [今天, 截止日] 且 start ≤ due
+  rawDatesInRange?: boolean; // LLM 裸输出日期合规率（信息指标，不作为门槛）
+  datesCoverage?: number; // 带日期的任务占比 0-1
+  depsValid?: boolean; // 依赖引用均存在、无自引用
+  periodicCount?: number; // 周期型任务数
 }
 
 export interface ReplanRecord {
@@ -38,6 +44,12 @@ export interface ReplanRecord {
   compression?: number;
   doneTitlesLeaked?: string[];
   priorityRangeOk?: boolean;
+  // Phase 2：diff 指标
+  addedCount?: number;
+  removedCount?: number;
+  keptCount?: number;
+  estDelta?: number;
+  rawTaskCount?: number; // LLM 裸输出任务数（guard 之前，信息指标）
 }
 
 const outDir = path.resolve(process.cwd(), "docs/eval");

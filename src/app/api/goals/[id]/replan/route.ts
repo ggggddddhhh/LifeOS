@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { replanGoal } from "@/lib/llm";
-import { computePlanDiff, enforceTaskBudget, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
+import { computePlanDiff, enforceTaskBudget, enforceTimeBudget, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
 import { normalizeTitle } from "@/lib/llm/parse";
 import type { PlanDiff, TaskSnapshot } from "@/lib/types";
 
@@ -45,7 +45,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const today = new Date().toISOString().slice(0, 10);
     sanitizeSchedule(result.tasks, deps, { today, deadline: goal.deadline?.toISOString().slice(0, 10) ?? null });
     const oldOpenTitles = new Set(openTasks.map((t) => normalizeTitle(t.title)));
-    const finalTasks = enforceTaskBudget(result.tasks, oldOpenTitles);
+    let finalTasks = enforceTaskBudget(result.tasks, oldOpenTitles);
+    const budget = enforceTimeBudget(finalTasks, daysLeft);
+    finalTasks = budget.tasks;
+    // 丢弃与已完成任务同名的条目：LLM 偶尔会"复活"已完成工作（Phase 2 评测发现）
+    const doneTitles = new Set(goal.tasks.filter((t) => t.status === "done").map((t) => normalizeTitle(t.title)));
+    finalTasks = finalTasks.filter((t) => !doneTitles.has(normalizeTitle(t.title)));
+    const reason = budget.note ? `${result.reason}（${budget.note}）` : result.reason;
 
     const oldOpen = openTasks.map((t) => ({
       title: t.title,
@@ -99,14 +105,14 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         data: {
           goalId: goal.id,
           revision: goalUpdated.revision,
-          reason: result.reason,
+          reason: reason,
           diffJson: JSON.stringify(diff),
         },
       });
       return goalUpdated;
     });
 
-    return NextResponse.json({ ok: true, data: { reason: result.reason, diff, goal: updated } });
+    return NextResponse.json({ ok: true, data: { reason, diff, goal: updated } });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Replan 失败" },

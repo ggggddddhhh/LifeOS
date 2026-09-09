@@ -1,30 +1,3 @@
 {
-  "reason": "剩余3天共1440分钟，原计划仅剩1个未完成任务且无时间估算，需补充完整上线所需任务并控制在预算内",
-  "tasks": [
-    {
-      "title": "写文章列表页",
-      "priority": 1,
-      "estMinutes": 240
-    },
-    {
-      "title": "写文章详情页",
-      "priority": 1,
-      "estMinutes": 240
-    },
-    {
-      "title": "配置部署与域名",
-      "priority": 1,
-      "estMinutes": 240
-    },
-    {
-      "title": "基础样式与响应式",
-      "priority": 2,
-      "estMinutes": 240
-    },
-    {
-      "title": "测试与修复",
-      "priority": 2,
-      "estMinutes": 240
-    }
-  ]
+  "error": "AI 未能生成有效的重新计划"
 }

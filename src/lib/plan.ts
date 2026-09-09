@@ -83,6 +83,9 @@ function toTime(dateStr: string): number {
 function toStr(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
+function isDateStr(v: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(toTime(v));
+}
 
 /**
  * 调度清洗（LLM 提议，代码强制）：
@@ -97,7 +100,10 @@ export function sanitizeSchedule(
   opts: { today: string; deadline?: string | null },
 ): PlannedTask[] {
   const todayMs = toTime(opts.today);
-  const deadlineMs = opts.deadline ? toTime(opts.deadline) : todayMs + 14 * DAY_MS;
+  // deadline 防御：非 YYYY-MM-DD 一律回退为今天 + 14 天
+  const deadlineMs = opts.deadline && isDateStr(opts.deadline)
+    ? toTime(opts.deadline)
+    : todayMs + 14 * DAY_MS;
 
   const byKey = new Map(tasks.map((t) => [normalizeTitle(t.title), t]));
   for (const t of tasks) {
@@ -189,6 +195,54 @@ export function enforceTaskBudget(tasks: PlannedTask[], oldTitles: Set<string>):
     dependedBy.delete(normalizeTitle(victim.title));
   }
   return out;
+}
+
+/**
+ * 硬容量保证（Phase 2 评测发现 prompt 约束不够硬）：总估时 ≤ daysLeft × 480 分钟。
+ * 超限时先砍无人依赖的低优先级任务；全是 P1/被依赖时按比例压缩估时（下限 15 分钟）。
+ * 返回最终任务列表与调整说明（供 reason 追加）。
+ */
+export function enforceTimeBudget(
+  tasks: PlannedTask[],
+  daysLeft: number,
+  capPerDay = CAPACITY_MINUTES_PER_DAY,
+): { tasks: PlannedTask[]; note: string | null } {
+  const cap = Math.max(capPerDay, daysLeft * capPerDay);
+  const out = [...tasks];
+  const total = () => out.reduce((s, t) => s + t.estMinutes, 0);
+  if (total() <= cap) return { tasks: out, note: null };
+
+  const dependedBy = new Set<string>();
+  for (const t of out) for (const d of t.dependsOn ?? []) dependedBy.add(normalizeTitle(d));
+  const cutTitles: string[] = [];
+
+  // 1) 砍无人依赖的低优先级任务（P3 → P2；P1 核心任务不砍，只参与等比压缩）
+  while (total() > cap) {
+    let victim = -1;
+    for (let i = 0; i < out.length; i++) {
+      const t = out[i];
+      if (t.priority === 1) continue;
+      if (dependedBy.has(normalizeTitle(t.title))) continue;
+      if (victim === -1 || t.priority > out[victim].priority) victim = i;
+    }
+    if (victim === -1) break; // 没有可砍任务
+    const [v] = out.splice(victim, 1);
+    cutTitles.push(v.title);
+    dependedBy.delete(normalizeTitle(v.title));
+  }
+
+  // 2) 仍超限（只剩 P1 或被依赖链锁死）→ 按比例压缩估时
+  let scaled = false;
+  if (total() > cap && out.length > 0) {
+    const factor = cap / total();
+    for (const t of out) t.estMinutes = Math.max(15, Math.round(t.estMinutes * factor));
+    scaled = true;
+  }
+
+  const parts: string[] = [];
+  if (cutTitles.length > 0) parts.push(`容量不足，已砍掉：${cutTitles.join("、")}`);
+  if (scaled) parts.push("剩余任务估时已按剩余时间等比压缩");
+  return { tasks: out, note: parts.length > 0 ? parts.join("；") : null };
 }
 
 /** 计算计划版本 diff（要求 #3）：按归一化标题匹配 oldOpen ↔ new */

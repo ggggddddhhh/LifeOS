@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planGoal, getLlmClient, OpenAiCompatClient } from "@/lib/llm";
+import { normalizeTitle } from "@/lib/llm/parse";
+import { budgetMinutes, sanitizeDependencies, sanitizeSchedule } from "@/lib/plan";
 import { daysUntil, findDuplicates, writeReport, type PlannerRecord } from "./helpers";
 
 const day = 86400000;
@@ -48,9 +50,43 @@ describe("真实 LLM：Planner 拆解质量（10 个目标）", () => {
         rec.priorityRangeOk = tasks.every((t) => t.priority >= 1 && t.priority <= 3);
         rec.hasHighPriority = tasks.some((t) => t.priority === 1);
         rec.estRangeOk = tasks.every((t) => t.estMinutes >= 10 && t.estMinutes <= 600);
-        const totalMin = tasks.reduce((s, t) => s + t.estMinutes, 0);
+        const totalMin = tasks.reduce((s, t) => s + budgetMinutes(t), 0);
         rec.minutesPerDay = Math.round(totalMin / daysLeft);
         rec.overload = rec.minutesPerDay > 480; // 日均超过 8 小时视为排期过载
+
+        // Phase 2：日期/依赖/周期检查。
+        // rawDatesInRange 衡量 LLM 裸输出合规率；用户实际拿到的结果是路由清洗后的，
+        // 因此断言作用在与生产相同的 sanitize 管线之后。
+        const today = new Date().toISOString().slice(0, 10);
+        const todayMs = new Date(`${today}T00:00:00Z`).getTime();
+        const deadlineMs = new Date(`${deadline.slice(0, 10)}T00:00:00Z`).getTime();
+        const dated = tasks.filter((t) => t.dueDate);
+        rec.datesCoverage = dated.length / tasks.length;
+        const rawInRange = dated.every((t) => {
+          const s = t.startDate ? new Date(`${t.startDate}T00:00:00Z`).getTime() : null;
+          const d = new Date(`${t.dueDate}T00:00:00Z`).getTime();
+          return d >= todayMs && d <= deadlineMs && (s === null || s <= d);
+        });
+        const titleSet = new Set(tasks.map((t) => normalizeTitle(t.title)));
+        const rawDepsValid = tasks.every(
+          (t) =>
+            !t.dependsOn ||
+            t.dependsOn.every((d) => normalizeTitle(d) !== normalizeTitle(t.title) && titleSet.has(normalizeTitle(d))),
+        );
+        rec.periodicCount = tasks.filter((t) => t.durationDays && t.durationDays >= 1).length;
+
+        // 与生产路由相同：清洗后再断言（用户视角）
+        const { deps: depsClean } = sanitizeDependencies(tasks);
+        sanitizeSchedule(tasks, depsClean, { today, deadline: deadline.slice(0, 10) });
+        rec.datesInRange = tasks
+          .filter((t) => t.dueDate)
+          .every((t) => {
+            const s = t.startDate ? new Date(`${t.startDate}T00:00:00Z`).getTime() : null;
+            const d = new Date(`${t.dueDate}T00:00:00Z`).getTime();
+            return d >= todayMs && d <= deadlineMs && (s === null || s <= d);
+          });
+        rec.depsValid = rawDepsValid; // 引用有效性不受清洗影响（清洗只丢弃，不新增）
+        rec.rawDatesInRange = rawInRange;
         records.push(rec);
 
         // 结构化断言（与具体内容无关）
@@ -60,6 +96,14 @@ describe("真实 LLM：Planner 拆解质量（10 个目标）", () => {
         expect(rec.priorityRangeOk).toBe(true);
         expect(rec.hasHighPriority, "应至少有一个高优先级").toBe(true);
         expect(rec.estRangeOk).toBe(true);
+        // Phase 2 断言
+        expect(rec.datesInRange, "日期应在 [今天, 截止日] 且 start ≤ due").toBe(true);
+        expect(rec.depsValid, "依赖引用应存在且无自引用").toBe(true);
+        expect(rec.datesCoverage ?? 0, "至少 60% 任务带日期").toBeGreaterThanOrEqual(0.6);
+        // 习惯型目标（减重/备考/储蓄）必须用周期型任务表达，而非一次性大估时
+        if (/减重|雅思|存下|跑步|背单词/.test(g.title)) {
+          expect(rec.periodicCount ?? 0, "习惯型目标应包含周期型任务(durationDays)").toBeGreaterThanOrEqual(1);
+        }
       } else {
         records.push(rec);
         expect.fail(`Planner 失败: ${error}`);
@@ -80,7 +124,11 @@ describe("真实 LLM：Planner 拆解质量（10 个目标）", () => {
         `过载目标数 ${overloads.length}`,
     );
     for (const r of records) {
-      console.log(`  [${r.ok ? "OK" : "FAIL"}] ${r.goal} → ${r.taskCount} 任务, 日均 ${r.minutesPerDay}min${r.overload ? " ⚠️过载" : ""}`);
+      console.log(
+        `  [${r.ok ? "OK" : "FAIL"}] ${r.goal} → ${r.taskCount} 任务, 日均 ${r.minutesPerDay}min, ` +
+          `日期覆盖 ${Math.round((r.datesCoverage ?? 0) * 100)}%, 周期型 ${r.periodicCount}, ` +
+          `依赖${r.depsValid ? "✓" : "✗"}${r.overload ? " ⚠️过载" : ""}`,
+      );
     }
   });
 });
