@@ -72,4 +72,4 @@ recordings/concat.txt
 agent/.venv*/
 .ruff_cache/
 recordings/*.mp4
-!recordings/lifeos-demo-alpha.mp4
+!recordings/planshift-demo-alpha.mp4

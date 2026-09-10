@@ -15,12 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LifeOS",
-  description: "AI 目标拆解与看板管理",
+  title: "PlanShift",
+  description: "自适应 AI 规划代理——根据目标、真实进度和日历变化持续重新规划",
 };
 
-/** 首屏前应用已存主题（防 FOUC），与 ThemeProvider 的 STORAGE_KEY 一致 */
-const THEME_BOOT = `(function(){try{var t=localStorage.getItem("lifeos-theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+/** 首屏前应用已存主题（防 FOUC），与 ThemeProvider 的 STORAGE_KEY 一致；旧键 lifeos-theme 仅回退读取 */
+const THEME_BOOT = `(function(){try{var t=localStorage.getItem("planshift-theme")||localStorage.getItem("lifeos-theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

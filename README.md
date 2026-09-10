@@ -1,6 +1,6 @@
-# LifeOS
+# PlanShift
 
-**An AI planning agent that turns goals into adaptive plans and keeps them aligned with your real progress and calendar.**
+**An adaptive AI planning agent: it re-plans continuously as your goals, real progress, and calendar change. Plans shift — PlanShift shifts with them.**
 
 > **Public Alpha** — experimental, under active development. Expect rough edges; the core safety model is real and tested, the polish is not.
 
@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="#-demo">Demo</a> ·
-  <a href="#-what-is-lifeos">What is LifeOS?</a> ·
+  <a href="#-what-is-planshift">What is PlanShift?</a> ·
   <a href="#-getting-started">Getting Started</a> ·
   <a href="#-safety-model">Safety Model</a> ·
   <a href="#-known-limitations">Limitations</a>
@@ -18,7 +18,7 @@
 
 Watch the full 90-second flow — **Goal → AI Plan → User Edit → Replan → Preview → Confirm → Calendar**:
 
-**[▶ Watch the demo (MP4)](recordings/lifeos-demo-alpha.mp4)**
+**[▶ Watch the demo (MP4)](recordings/planshift-demo-alpha.mp4)**
 
 Every step in the video is a real product run: real LLM planning, real Google Calendar writes through the confirmation flow. No mockups, no staged results.
 
@@ -30,9 +30,9 @@ Every step in the video is a real product run: real LLM planning, real Google Ca
 | **Replan Preview** | **Calendar** |
 | ![Replan Preview](screenshots/replan-preview.png) | ![Calendar](screenshots/calendar.png) |
 
-## 🤔 What is LifeOS?
+## 🤔 What is PlanShift?
 
-LifeOS is not a todo app. A todo app stores tasks you type. LifeOS runs an **agent loop** around them:
+PlanShift is not a todo app. A todo app stores tasks you type. PlanShift runs an **agent loop** around them:
 
 ```
 Goal

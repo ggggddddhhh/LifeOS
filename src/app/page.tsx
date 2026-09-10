@@ -83,7 +83,7 @@ export default function TodayPage() {
         <EmptyState
           icon={Sparkles}
           title="从一个目标开始"
-          hint="描述你想完成的事，LifeOS 会拆解成带估时与排期的计划，并观察 GitHub 与日历的真实进展。"
+          hint="描述你想完成的事，PlanShift 会拆解成带估时与排期的计划，并观察 GitHub 与日历的真实进展。"
         />
       ) : (
         <>

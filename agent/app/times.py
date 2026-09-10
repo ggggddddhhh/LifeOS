@@ -96,7 +96,7 @@ def parse_ics_dtstart(value: str, tzid: str | None, planning_tz: str) -> WallToI
 
 
 def ics_utc_str(instant: datetime) -> str:
-    """LifeOS 写出格式：UTC Z（RFC5545），自建事件零歧义。"""
+    """PlanShift 写出格式：UTC Z（RFC5545），自建事件零歧义。"""
     return instant.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 

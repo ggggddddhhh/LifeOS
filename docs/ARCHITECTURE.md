@@ -1,4 +1,4 @@
-# LifeOS — Phase 1 MVP 架构设计
+# PlanShift — Phase 1 MVP 架构设计
 
 ## 1. 目标与范围
 
@@ -25,7 +25,7 @@ Phase 1 只做一个真正可运行的核心闭环：
 ## 3. 目录结构（模块化，为 Agent Core 预留）
 
 ```
-lifeos/
+planshift/
 ├── src/
 │   ├── app/                    # Next.js App Router
 │   │   ├── page.tsx            # 主页：目标输入 + 看板

@@ -33,7 +33,7 @@ from .schemas import (
     ReplanResponse,
 )
 
-app = FastAPI(title="LifeOS Agent Core", version="0.2.0")
+app = FastAPI(title="PlanShift Agent Core", version="0.2.0")
 
 
 @app.middleware("http")

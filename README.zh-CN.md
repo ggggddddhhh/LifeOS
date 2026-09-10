@@ -1,6 +1,6 @@
-# LifeOS
+# PlanShift
 
-**一个 AI 规划代理：把目标变成可执行的自适应计划，并让计划始终对齐你的真实进展与日历。**
+**一个会根据目标、真实进度和日历变化持续重新规划的 AI Agent。计划赶不上变化，那就让计划跟着变化。**
 
 > **Public Alpha（公开测试版）** —— 实验性项目，持续开发中。核心安全模型经过真实验证，产品打磨尚未完成，请预期粗糙边缘。
 
@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="#-demo-演示">演示</a> ·
-  <a href="#-what-is-lifeos-什么是-lifeos">什么是 LifeOS</a> ·
+  <a href="#-what-is-planshift-什么是-planshift">什么是 PlanShift</a> ·
   <a href="#-getting-started-快速开始">快速开始</a> ·
   <a href="#-safety-model-安全模型">安全模型</a> ·
   <a href="#️-known-limitations-已知限制">已知限制</a>
@@ -18,7 +18,7 @@
 
 观看完整的 90 秒流程 —— **目标 → AI 计划 → 手动编辑 → 重新规划 → 预览 → 确认 → 日历**：
 
-**[▶ 观看演示（MP4）](recordings/lifeos-demo-alpha.mp4)**
+**[▶ 观看演示（MP4）](recordings/planshift-demo-alpha.mp4)**
 
 视频中的每一步都是真实产品运行：真实 LLM 规划、通过确认流程真实写入 Google Calendar。没有排练，没有伪造结果。
 
@@ -30,9 +30,9 @@
 | **Replan 重新规划预览** | **Calendar 日历** |
 | ![Replan Preview](screenshots/replan-preview.png) | ![Calendar](screenshots/calendar.png) |
 
-## 🤔 What is LifeOS？什么是 LifeOS？
+## 🤔 What is PlanShift？什么是 PlanShift？
 
-LifeOS 不是待办事项应用。待办应用只是存储你输入的任务；LifeOS 在任务之外运行一个**代理闭环**：
+PlanShift 不是待办事项应用。待办应用只是存储你输入的任务；PlanShift 在任务之外运行一个**代理闭环**：
 
 ```
 目标

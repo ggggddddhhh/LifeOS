@@ -54,7 +54,7 @@ the same discipline: draft → confirm → write → verify, idempotent and safe
 
 ## Demo
 
-`recordings/lifeos-demo-alpha.mp4` (90 seconds, real product run, real Google writes)
+`recordings/planshift-demo-alpha.mp4` (90 seconds, real product run, real Google writes)
 — also linked from the README.
 
 ## Repository note

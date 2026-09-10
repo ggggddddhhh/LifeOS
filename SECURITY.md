@@ -6,7 +6,7 @@
 |---|---|
 | v0.1.0-alpha (main) | ✅ security fixes only |
 
-LifeOS is a Public Alpha. Security fixes are prioritized over features.
+PlanShift is a Public Alpha. Security fixes are prioritized over features.
 
 ## Reporting a vulnerability
 
@@ -16,7 +16,7 @@ Report privately via GitHub "Report a vulnerability" (Security tab → Advisorie
 
 ## What matters most in this repo
 
-LifeOS integrates with Google Calendar and stores OAuth credentials locally.
+PlanShift integrates with Google Calendar and stores OAuth credentials locally.
 
 **Never commit, paste or screenshot:**
 

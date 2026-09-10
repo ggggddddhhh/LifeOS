@@ -72,7 +72,7 @@ export function GoalCreateDialog({ onCreated }: { onCreated: (g: GoalView) => vo
         <DialogHeader>
           <DialogTitle>创建目标</DialogTitle>
           <DialogDescription>
-            LifeOS 会把目标拆解成带估时、排期与依赖的任务计划。描述里可以写 repo:owner/name 接入 GitHub 进度观察。
+            PlanShift 会把目标拆解成带估时、排期与依赖的任务计划。描述里可以写 repo:owner/name 接入 GitHub 进度观察。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3.5">

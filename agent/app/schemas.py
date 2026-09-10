@@ -125,7 +125,7 @@ class GithubFacts(BaseModel):
 
 
 class TaskMatch(BaseModel):
-    """LifeOS 任务 ↔ GitHub issue 匹配（带置信度，标题不等同）。"""
+    """PlanShift 任务 ↔ GitHub issue 匹配（带置信度，标题不等同）。"""
     task_title: str
     issue_number: int
     issue_title: str

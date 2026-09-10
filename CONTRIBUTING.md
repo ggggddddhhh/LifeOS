@@ -1,6 +1,6 @@
-# Contributing to LifeOS
+# Contributing to PlanShift
 
-Thanks for looking at LifeOS. It's a Public Alpha — the fastest way to help right now is to **use it and report what breaks**.
+Thanks for looking at PlanShift. It's a Public Alpha — the fastest way to help right now is to **use it and report what breaks**.
 
 ## Before you start
 

@@ -6,7 +6,7 @@
   3. 首次运行会打印授权 URL（含 state）→ 浏览器授权 → 把整个回调 URL 粘贴回来
   4. export GOOGLE_CALENDAR_ID=primary（或目标日历 id）
 
-行为：创建一个 "[LifeOS Test]" 事件 → GET 回读 Verify（Instant+metadata）→ 打印 event id →
+行为：创建一个 "[PlanShift Test]" 事件 → GET 回读 Verify（Instant+metadata）→ 打印 event id →
 同 key 幂等复验。不自动删除（按要求）；人工清理：日历中删除该事件即可。
 
 Phase 8.5：
@@ -84,12 +84,12 @@ def main() -> int:
     key = f"smoke:{start.strftime('%Y%m%d%H%M')}:t1:1"
     metadata = {"goalId": "smoke", "taskId": "t1", "planVersion": 1, "timezone": TZ}
     try:
-        ev = provider.create_event(key, "[LifeOS Test] 冒烟事件", start, end, metadata=metadata)
+        ev = provider.create_event(key, "[PlanShift Test] 冒烟事件", start, end, metadata=metadata)
         checks = provider.verify_event(ev["id"], expect_start=start, expect_end=end, metadata={**metadata, "idempotencyKey": key})
         print(f"✅ 创建并 Verify 通过：event id={ev['id']} start={ev['start']} checks={checks}")
         print("（按要求不自动删除；请人工在日历中清理该测试事件）")
         # 幂等复验：同 key 再创建 → 应命中既有事件
-        again = provider.create_event(key, "[LifeOS Test] 冒烟事件", start, end, metadata=metadata)
+        again = provider.create_event(key, "[PlanShift Test] 冒烟事件", start, end, metadata=metadata)
         print(f"✅ 幂等复验：再次 create 返回同一事件 {again['id'] == ev['id']}")
         return 0
     except CalendarWriteError as e:

@@ -47,7 +47,7 @@ def make_facts(
     return GithubFacts(
         ok=ok,
         error=error,
-        repo=RepoInfo(full_name="lifeos/demo", default_branch="main", pushed_at=now_iso(0.2), open_issues_count=len(open_issue_titles)) if ok else None,
+        repo=RepoInfo(full_name="planshift/demo", default_branch="main", pushed_at=now_iso(0.2), open_issues_count=len(open_issue_titles)) if ok else None,
         open_issues=[IssueBrief(number=i + 1, title=t, updated_at=now_iso(i)) for i, t in enumerate(open_issue_titles)],
         closed_recent=[IssueBrief(number=100 + i, title=t, updated_at=now_iso(1 + i)) for i, t in enumerate(closed_issue_titles or [])],
         open_prs=[PRBrief(number=50 + i, title=t, updated_at=now_iso(4)) for i, t in enumerate(prs or [])],
@@ -88,7 +88,7 @@ class TestExtractRepo:
         assert extract_repo("见 github.com/acme/web-app/issues", None) == ("acme", "web-app")
 
     def test_repo_tag(self):
-        assert extract_repo("repo:lifeos/demo 的 MVP", None) == ("lifeos", "demo")
+        assert extract_repo("repo:planshift/demo 的 MVP", None) == ("planshift", "demo")
 
     def test_none(self):
         assert extract_repo("7 天内完成这个 GitHub 项目的 MVP", "没有地址") is None
@@ -198,7 +198,7 @@ class TestAnalyzeProgress:
 
 REPLAN_REQ = {
     "goalTitle": "7 天内完成 MVP",
-    "goalDescription": "仓库 https://github.com/lifeos/demo",
+    "goalDescription": "仓库 https://github.com/planshift/demo",
     "daysLeft": 5,
     "tasks": [
         {"title": "设计数据库 Schema", "status": "todo", "estMinutes": 120, "priority": 1},
@@ -264,7 +264,7 @@ class TestGraphBranches:
 
     def test_plan_kind_also_gets_context(self):
         gh = FakeGithub(make_facts(["现有问题A"], ci_conclusion="failure"))
-        state = run_plan({"title": "MVP", "description": "github.com/lifeos/demo", "deadline": None}, MockLLM(), gh)
+        state = run_plan({"title": "MVP", "description": "github.com/planshift/demo", "deadline": None}, MockLLM(), gh)
         assert state["progress"]["verdict"] == "behind"
         assert state["llm_calls"] == 1
 
@@ -274,7 +274,7 @@ class TestGraphBranches:
 class TestHttpClientDegradation:
     def test_404_becomes_ok_false(self, no_llm_env, monkeypatch):
         client = HttpGithubClient(base_url="http://127.0.0.1:9")  # 不可达端口
-        facts = client.fetch_facts("lifeos", "demo")
+        facts = client.fetch_facts("planshift", "demo")
         assert facts.ok is False
         assert facts.repo is None
         assert facts.error
@@ -285,6 +285,6 @@ class TestHttpClientDegradation:
 
         client = HttpGithubClient.__new__(HttpGithubClient)
         client._get = slow_get
-        facts = client.fetch_facts("lifeos", "demo")
+        facts = client.fetch_facts("planshift", "demo")
         assert facts.ok is False
         assert "Timeout" in facts.error

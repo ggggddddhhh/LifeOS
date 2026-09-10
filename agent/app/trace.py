@@ -21,7 +21,7 @@ _MAX_STR = 80
 _lock = threading.Lock()
 
 # Phase 9.5：请求级关联 ID（由 FastAPI 中间件从 x-run-id header 注入）
-_run_id: ContextVar[str | None] = ContextVar("lifeos_run_id", default=None)
+_run_id: ContextVar[str | None] = ContextVar("planshift_run_id", default=None)
 
 
 def set_run_id(run_id: str | None) -> None:

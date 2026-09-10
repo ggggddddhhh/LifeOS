@@ -5,7 +5,7 @@
 
 段间由外部执行的动作（进程重启/token 删除恢复）见 PHASE9-DESIGN.md §3。
 Google 直连仅用于：① 模拟用户手动占用日历（occupy，运维脚本非 Agent 路径）
-② audit 对账读取。绝不删除/修改用户事件；LifeOS 测试事件留人工清理。
+② audit 对账读取。绝不删除/修改用户事件；PlanShift 测试事件留人工清理。
 """
 
 from __future__ import annotations
@@ -281,7 +281,7 @@ def seg_audit() -> None:
     extra = [k for k in gkeys if k not in {w["idempotencyKey"] for w in writes}]
     check(not dup, f"Google 无重复 idempotencyKey（{len(gkeys)} 事件）")
     check(not unmatched, "DB success 写入 ↔ Google 事件 externalEventId 全部 1:1 匹配")
-    check(not extra, f"无 DB 外的孤儿 LifeOS 事件（多余 {len(extra)}）")
+    check(not extra, f"无 DB 外的孤儿 PlanShift 事件（多余 {len(extra)}）")
 
     # 指标汇总（trace JSONL）
     stats = {"agent": _trace_stats(ROOT / "agent" / "logs" / "agent-trace.jsonl"),

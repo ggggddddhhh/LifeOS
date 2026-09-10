@@ -65,7 +65,7 @@ class HttpGithubClient:
     def __init__(self, token: str | None = None, base_url: str | None = None, timeout_s: float | None = None):
         self.base_url = (base_url or os.environ.get("GITHUB_API_BASE") or "https://api.github.com").rstrip("/")
         self.timeout_s = timeout_s or float(os.environ.get("GITHUB_TIMEOUT_S", DEFAULT_TIMEOUT_S))
-        headers = {"Accept": "application/vnd.github+json", "User-Agent": "LifeOS-Agent"}
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "PlanShift-Agent"}
         if token or os.environ.get("GITHUB_TOKEN"):
             headers["Authorization"] = f"Bearer {token or os.environ['GITHUB_TOKEN']}"
         self._client = httpx.Client(timeout=self.timeout_s, headers=headers)

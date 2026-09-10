@@ -1,6 +1,6 @@
 """Phase 8/8.5：Google Calendar Provider（真实日历接入 + 长期运行加固）。
 
-- 第一版只支持：读事件 / 读 all-day / 创建 LifeOS 事件 / 写后 Verify（8.5 不变）
+- 第一版只支持：读事件 / 读 all-day / 创建 PlanShift 事件 / 写后 Verify（8.5 不变）
 - 禁止 Update / Delete / Move / 修改用户事件（代码层不调用相应 API）
 - Google API 逻辑只存在于此文件；Planner/Graph/Finalize/路由零感知
 - Token 铁律：access/refresh/secret 永不进入 prompt、AgentState、日志或错误响应
@@ -39,7 +39,8 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API_BASE = "https://www.googleapis.com/calendar/v3"
-LIFEOS_MARKER = "app=lifeos"
+# 数据契约：private.app=lifeos 已写入存量 Google 事件，识别/对账依赖它，暂不改值
+PLANSHIFT_MARKER = "app=lifeos"
 SESSION_TTL_SECONDS = 600  # 授权会话（state+verifier）10 分钟一次性
 
 # 用户可理解提示（Phase 8.5）：随 CalendarWriteError.hint 透传到 TS error 字符串
@@ -469,7 +470,7 @@ class GoogleCalendarProvider(CalendarClient, CalendarWriteProvider):
         daily_window = int(os.environ.get("CAL_DAILY_WINDOW_MINUTES", 720))
         for it in items:
             priv = (it.get("extendedProperties") or {}).get("private") or {}
-            source = "lifeos" if priv.get("app") == "lifeos" or it.get("summary", "").startswith("LifeOS:") else "user"
+            source = "lifeos" if priv.get("app") == "lifeos" or it.get("summary", "").startswith(("LifeOS:", "PlanShift:")) else "user"
             s, e = it.get("start") or {}, it.get("end") or {}
             if "date" in s:  # all-day：LocalDate 语义
                 ld = s["date"]
@@ -547,7 +548,7 @@ class GoogleCalendarProvider(CalendarClient, CalendarWriteProvider):
         metadata = metadata or {}
         body = {
             "summary": title,
-            "description": f"LifeOS 计划块 goal={metadata.get('goalId')} task={metadata.get('taskId')} "
+            "description": f"PlanShift 计划块 goal={metadata.get('goalId')} task={metadata.get('taskId')} "
                            f"v{metadata.get('planVersion')} key={uid}",
             "start": self._from_instant(start, metadata.get("timezone") or DEFAULT_PLANNING_TZ),
             "end": self._from_instant(end, metadata.get("timezone") or DEFAULT_PLANNING_TZ),
@@ -576,7 +577,7 @@ class GoogleCalendarProvider(CalendarClient, CalendarWriteProvider):
 
     def verify_event(self, external_event_id: str, *, expect_start: datetime, expect_end: datetime,
                      metadata: dict | None = None) -> dict:
-        """GET 回读：Instant + calendarId + LifeOS metadata 全匹配才算通过。"""
+        """GET 回读：Instant + calendarId + PlanShift metadata 全匹配才算通过。"""
         metadata = metadata or {}
         try:
             res = self._get(f"/calendars/{self.calendar_id}/events/{external_event_id}")

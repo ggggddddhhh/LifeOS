@@ -6,7 +6,7 @@ import type { PlanDiff } from "@/lib/types";
 /**
  * 手动任务编辑的确定性守卫（Phase 11：用户对 AI Plan 的最终控制权）。
  *
- * 原则（借鉴 Cline/Vikunja/Plane/Super Productivity，适配 LifeOS 单用户本地场景）：
+ * 原则（借鉴 Cline/Vikunja/Plane/Super Productivity，适配 PlanShift 单用户本地场景）：
  * - 用户改的是事实：schedule 越界（< 今天 / > 截止）与依赖成环 → 硬拒绝（400）；
  * - 容量超载 → 只警告不阻断（用户有权超额，警告在确认步骤呈现）；
  * - 已写入日历的任务被改 → 只提示（calendarHint），绝不自动 Update/Delete 日历事件；

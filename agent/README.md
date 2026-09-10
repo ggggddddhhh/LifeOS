@@ -1,4 +1,4 @@
-# LifeOS Agent Core（Phase 3 · M1）
+# PlanShift Agent Core（Phase 3 · M1）
 
 FastAPI + LangGraph 的 Planner/Replanner 服务。**无状态、不访问数据库**；持久化由 Next.js 业务层负责。
 

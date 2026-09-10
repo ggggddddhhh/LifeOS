@@ -120,7 +120,7 @@ export function CalendarDraftPanel({ goalId }: { goalId: string }) {
         <EmptyState
           icon={CalendarPlus}
           title="尚未生成日历排期"
-          hint="LifeOS 会读取你的日历空闲时段，生成待确认的排期草稿——不会直接写入"
+          hint="PlanShift 会读取你的日历空闲时段，生成待确认的排期草稿——不会直接写入"
           action={{ label: busy ? "生成中…" : "生成草稿", onClick: () => !busy && generate() }}
         />
       )}
@@ -150,7 +150,7 @@ export function CalendarDraftPanel({ goalId }: { goalId: string }) {
                       </Button>
                     }
                     title={`确认向日历写入 ${pending.length} 个事件？`}
-                    description="LifeOS 将在以下时段创建事件（不会修改你已有的任何事件）。重复确认是安全的——已写入的不会重复创建。"
+                    description="PlanShift 将在以下时段创建事件（不会修改你已有的任何事件）。重复确认是安全的——已写入的不会重复创建。"
                     confirmLabel="确认写入"
                     busy={busy}
                     onConfirm={confirmAll}

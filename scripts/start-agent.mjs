@@ -1,5 +1,5 @@
 /**
- * LifeOS Agent 一键启动（跨平台）：
+ * PlanShift Agent 一键启动（跨平台）：
  *   - LLM：.env 的 LLM_BASE_URL/LLM_MODEL/LLM_TIMEOUT_S；LLM_API_KEY 优先取系统环境变量
  *     DEEPSEEK_API_KEY（用户已配置），避免密钥写入文件
  *   - Google Calendar：agent/google-credentials.json 存在则自动启用（token/凭据均 gitignored）

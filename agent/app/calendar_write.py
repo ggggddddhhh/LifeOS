@@ -4,7 +4,7 @@
 v1 仅支持 CREATE，永不覆盖用户事件。
 
 时间语义：startUtc/endUtc = Instant；墙钟计算只在规划时区（IANA）内进行；
-冲突检测与 Verify 全部 Instant 比较；LifeOS 写出 ICS 用 UTC Z 格式（零歧义回读）。
+冲突检测与 Verify 全部 Instant 比较；PlanShift 写出 ICS 用 UTC Z 格式（零歧义回读）。
 """
 
 from __future__ import annotations
@@ -25,8 +25,9 @@ from .times import (
     wall_in_tz,
 )
 
+# 数据契约：UID 前缀与 @lifeos 域名已写入存量日历事件，改名会导致旧事件无法识别/幂等回查失效
 UID_PREFIX = "lifeos"
-TITLE_PREFIX = "LifeOS:"
+TITLE_PREFIX = "PlanShift:"
 MINUTES_PER_DAY = 1440
 
 

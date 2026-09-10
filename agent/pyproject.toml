@@ -1,7 +1,7 @@
 [project]
-name = "lifeos-agent"
+name = "planshift-agent"
 version = "0.1.0"
-description = "LifeOS Python Agent Core — LangGraph Planner/Replanner（无数据库、无状态）"
+description = "PlanShift Python Agent Core — LangGraph Planner/Replanner（无数据库、无状态）"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
