@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { CircleAlert, TriangleAlert } from "lucide-react";
+import { CalendarClock, CalendarPlus, CircleAlert, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { budgetOf, capacityMinutesOf, daysLeftOf, fmtDate, type GoalView } from "@/lib/ui-data";
 import { DEFAULT_POLICY, type PlanningPolicy } from "@/lib/policy-core";
 import { cn } from "@/lib/utils";
 
-/** Today 焦点目标卡：进度 · 截止倒计时 · 剩余工作量 vs 容量（估算，标注来源）。 */
+/** 焦点目标排序：截止越近越靠前（无截止最后），其次未完成任务多者。 */
+export function focusScore(goal: GoalView): number {
+  const daysLeft = daysLeftOf(goal.deadline);
+  const open = goal.tasks.filter((t) => t.status !== "done").length;
+  return (daysLeft === null ? 10000 : daysLeft * 100) - open;
+}
+
+/** Today 焦点目标卡：进度 · 截止倒计时 · 剩余工作量 vs 容量 · 今日容量（策略口径）。 */
 export function FocusGoal({ goal, policy = DEFAULT_POLICY }: { goal: GoalView; policy?: PlanningPolicy }) {
   const done = goal.tasks.filter((t) => t.status === "done").length;
   const total = goal.tasks.length;
@@ -38,6 +45,9 @@ export function FocusGoal({ goal, policy = DEFAULT_POLICY }: { goal: GoalView; p
           <span className={cn("tabular", urgent && "font-medium text-danger")}>{fmtDate(goal.deadline)} 截止</span>
         )}
         <span className="tabular">剩余投入 {Math.round(openMin / 60)}h</span>
+        <span className="tabular rounded border bg-muted/50 px-1.5 py-0.5" title="按规划策略：每日可投入 × 剩余工作日">
+          今日容量 {Math.round(policy.dailyCapacityMinutes / 60)}h
+        </span>
         {risk && (
           <StatusBadge tone={risk.tone} dot>
             {risk.label}
@@ -56,9 +66,24 @@ export function FocusGoal({ goal, policy = DEFAULT_POLICY }: { goal: GoalView; p
   );
 }
 
-/** 风险信号（contextual，只在有情况时出现）：截止临近 / 容量超载。 */
-export function RiskSignals({ goals, policy = DEFAULT_POLICY }: { goals: GoalView[]; policy?: PlanningPolicy }) {
+/**
+ * Plan Health（contextual，只在有情况时出现，不常驻占位）：
+ * 截止临近 / 容量超载（建议 Replan）/ 日历排期待确认。
+ */
+export function PlanHealth({
+  goals,
+  policy = DEFAULT_POLICY,
+}: {
+  goals: GoalView[];
+  policy?: PlanningPolicy;
+}) {
   const signals: { tone: "warning" | "danger" | "info"; text: string; href: string }[] = [];
+  const pendingDrafts = goals.flatMap((g) =>
+    (g.calDrafts ?? [])
+      .filter((d) => d.status === "pending_confirmation")
+      .map((d) => ({ goal: g, draft: d })),
+  );
+
   for (const g of goals) {
     const daysLeft = daysLeftOf(g.deadline);
     const open = g.tasks.filter((t) => t.status !== "done");
@@ -70,23 +95,64 @@ export function RiskSignals({ goals, policy = DEFAULT_POLICY }: { goals: GoalVie
       signals.push({ tone: "warning", text: `「${g.title.slice(0, 16)}」剩余工作量超出剩余天数容量，建议重新规划`, href: `/goals/${g.id}` });
     }
   }
+  if (pendingDrafts.length > 0) {
+    const g = pendingDrafts[0].goal;
+    signals.push({
+      tone: "info",
+      text: `有 ${pendingDrafts.length} 条日历排期等待确认——确认后才会写入你的日历`,
+      href: `/goals/${g.id}`,
+    });
+  }
   if (signals.length === 0) return null;
   return (
-    <div className="space-y-1.5">
+    <section aria-label="计划健康信号" className="space-y-1.5">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan Health</h2>
       {signals.slice(0, 3).map((s, i) => (
         <Link
           key={i}
           href={s.href}
-          className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-foreground transition-colors duration-150 hover:bg-warning/10"
+          className={cn(
+            "flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors duration-150",
+            s.tone === "info"
+              ? "border-info/20 bg-info/5 hover:bg-info/10"
+              : "border-warning/20 bg-warning/5 hover:bg-warning/10",
+          )}
         >
           {s.tone === "danger" ? (
             <CircleAlert className="size-3.5 shrink-0 text-danger" aria-hidden />
+          ) : s.tone === "info" ? (
+            <CalendarPlus className="size-3.5 shrink-0 text-info" aria-hidden />
           ) : (
             <TriangleAlert className="size-3.5 shrink-0 text-warning" aria-hidden />
           )}
           <span className="min-w-0 flex-1 truncate">{s.text}</span>
         </Link>
       ))}
-    </div>
+    </section>
+  );
+}
+
+/** 其他进行中目标的紧凑行（点击进 Detail）。 */
+export function OtherGoalRow({ goal }: { goal: GoalView }) {
+  const done = goal.tasks.filter((t) => t.status === "done").length;
+  const total = goal.tasks.length;
+  const pct = total > 0 ? (done / total) * 100 : 0;
+  const daysLeft = daysLeftOf(goal.deadline);
+  return (
+    <Link
+      href={`/goals/${goal.id}`}
+      className="group flex items-center gap-3 rounded-md border bg-card px-3 py-2 transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <div className="h-0.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="min-w-0 flex-1 truncate text-[13px]">{goal.title}</span>
+      {daysLeft !== null && (
+        <span className="tabular shrink-0 text-[11px] text-muted-foreground">
+          <CalendarClock className="mr-1 inline size-3 align-[-1px]" aria-hidden />
+          剩 {daysLeft} 天
+        </span>
+      )}
+    </Link>
   );
 }

@@ -131,3 +131,48 @@ class TestCalendarOpsEndpoints:
         res = api_client.post("/v1/calendar/disconnect")
         assert res.status_code == 409
         assert res.json()["error"]["code"] == "CAL_CONFLICT"
+
+
+class TestCalendarFactsEndpoint:
+    """UI Redesign V2：GET /v1/calendar/facts（只读观察面，绝不写）。"""
+
+    def test_not_configured_degrades_gracefully(self, api_client, monkeypatch):
+        monkeypatch.delenv("CAL_ICS_PATH", raising=False)
+        res = api_client.get("/v1/calendar/facts")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["ok"] is False and body["error"] == "calendar_not_configured"
+        assert body["events"] == []
+
+    def test_ics_events_expose_source(self, api_client, monkeypatch, tmp_path):
+        d1 = (date.today() + timedelta(days=1)).strftime("%Y%m%d")
+        ics = tmp_path / "demo.ics"
+        ics.write_text(
+            "\r\n".join([
+                "BEGIN:VCALENDAR",
+                "BEGIN:VEVENT",
+                "UID:user-evt-1",
+                "SUMMARY:高数课",
+                f"DTSTART;TZID=Asia/Shanghai:{d1}T100000",
+                f"DTEND;TZID=Asia/Shanghai:{d1}T120000",
+                "END:VEVENT",
+                "BEGIN:VEVENT",
+                "UID:lifeos-evt-1",
+                "SUMMARY:PlanShift: 修改论文",
+                f"DTSTART;TZID=Asia/Shanghai:{d1}T190000",
+                f"DTEND;TZID=Asia/Shanghai:{d1}T200000",
+                "END:VEVENT",
+                "END:VCALENDAR",
+            ]) + "\r\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CALENDAR_PROVIDER", "ics")
+        monkeypatch.setenv("CAL_ICS_PATH", str(ics))
+        res = api_client.get("/v1/calendar/facts?days=7&timezone=Asia/Shanghai")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["ok"] is True
+        sources = {e["title"]: e["source"] for e in body["events"]}
+        assert sources.get("高数课") == "user"
+        assert sources.get("PlanShift: 修改论文") == "lifeos"
+        assert len(body["days"]) == 7

@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, History, KanbanSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ErrorState, ListSkeleton } from "@/components/shared/states";
@@ -11,18 +11,30 @@ import { GoalHeader } from "@/components/goal-detail/goal-header";
 import { Kanban } from "@/components/goal-detail/kanban";
 import { PlanHistory } from "@/components/goal-detail/plan-history";
 import { CalendarDraftPanel } from "@/components/goal-detail/calendar-draft-panel";
-import { ReplanAction } from "@/components/goal-detail/replan-action";
+import { ReplanAction, type ReplanResultInfo } from "@/components/goal-detail/replan-action";
 import { TaskFormDialog } from "@/components/goal-detail/task-form-dialog";
 import { useGoals, type GoalView, type TaskView } from "@/lib/ui-data";
+import { cn } from "@/lib/utils";
 import type { TaskStatus } from "@/lib/types";
 
+type Tab = "tasks" | "history" | "calendar";
+
+const TABS: { key: Tab; label: string; icon: typeof KanbanSquare }[] = [
+  { key: "tasks", label: "任务", icon: KanbanSquare },
+  { key: "history", label: "计划历史", icon: History },
+  { key: "calendar", label: "日历", icon: CalendarDays },
+];
+
+/** Goal Detail：目标执行控制中心——统计条 + Replan 主操作，任务/历史/日历分区渐进披露。 */
 export default function GoalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { goals, policy, loading, error, refresh, setError } = useGoals();
   const [goal, setGoal] = useState<GoalView | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // replan 后本会话内持有 Agent 返回的真实容量（「日历实测」），刷新页面回退估算口径
   const [capacityMinutes, setCapacityMinutes] = useState<number | null>(null);
+  const [tab, setTab] = useState<Tab>("tasks");
   // 依赖未完成仍要开始时的二次确认（Asana/Plane 模式：警告 + 显式确认，而非硬禁止）
   const [depConfirm, setDepConfirm] = useState<{ taskId: string; blocking: string[] } | null>(null);
   // 任务编辑 / 新建 / 删除（Phase 11 用户控制权）
@@ -138,12 +150,17 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
         <span className="truncate">{goal.title.length > 18 ? `${goal.title.slice(0, 18)}…` : goal.title}</span>
       </nav>
 
-      <header className="space-y-3">
+      <header className="space-y-4 border-b pb-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight">{goal.title}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold tracking-tight">{goal.title}</h1>
+            {goal.description && (
+              <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">{goal.description}</p>
+            )}
+          </div>
           <ConfirmDialog
             trigger={
-              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-danger">
+              <Button size="icon-sm" variant="ghost" className="text-muted-foreground hover:text-danger">
                 <Trash2 className="size-3.5" aria-hidden />
                 <span className="sr-only">删除目标</span>
               </Button>
@@ -156,9 +173,15 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
             onConfirm={handleDelete}
           />
         </div>
-        {goal.description && <p className="max-w-2xl text-[13px] leading-relaxed text-muted-foreground">{goal.description}</p>}
         <GoalHeader goal={goal} capacityMinutes={capacityMinutes} policy={policy} />
-        <ReplanAction goalId={goal.id} disabledReason={openCount === 0 ? "所有任务已完成" : null} onDone={() => refresh()} />
+        <ReplanAction
+          goalId={goal.id}
+          disabledReason={openCount === 0 ? "所有任务已完成" : null}
+          onDone={(info?: ReplanResultInfo) => {
+            if (info && typeof info.capacityMinutes === "number") setCapacityMinutes(info.capacityMinutes);
+            refresh();
+          }}
+        />
       </header>
 
       {notice && (
@@ -167,32 +190,57 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
         </p>
       )}
 
-      <section aria-label="任务看板" className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold">任务看板</h2>
-          <Button size="sm" variant="outline" onClick={() => setCreatingTask(true)}>
-            <Plus className="mr-1.5 size-3.5" aria-hidden />
-            添加任务
-          </Button>
-        </div>
-        <Kanban
-          tasks={goal.tasks}
-          onStatusChange={onStatusChange}
-          onEdit={(t) => setEditingTask(t)}
-          onDelete={(t) => setDeletingTask(t)}
-        />
-      </section>
+      <div role="tablist" aria-label="目标视图" className="flex gap-1 border-b">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={cn(
+              "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors duration-150",
+              tab === key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {label}
+            {key === "history" && (goal.versions?.length ?? 0) > 0 && (
+              <span className="tabular text-[11px] text-muted-foreground">{goal.versions?.length}</span>
+            )}
+          </button>
+        ))}
+        {tab === "tasks" && (
+          <div className="ml-auto pb-1.5">
+            <Button size="sm" variant="outline" onClick={() => setCreatingTask(true)}>
+              <Plus className="mr-1.5 size-3.5" aria-hidden />
+              添加任务
+            </Button>
+          </div>
+        )}
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section aria-label="计划历史" className="rounded-lg border p-4">
-          <h2 className="mb-3 text-[13px] font-semibold">计划历史</h2>
+      {tab === "tasks" && (
+        <section aria-label="任务看板">
+          <Kanban
+            tasks={goal.tasks}
+            onStatusChange={onStatusChange}
+            onEdit={(t) => setEditingTask(t)}
+            onDelete={(t) => setDeletingTask(t)}
+          />
+        </section>
+      )}
+      {tab === "history" && (
+        <section aria-label="计划历史">
           <PlanHistory versions={goal.versions ?? []} />
         </section>
-        <section aria-label="日历写入" className="rounded-lg border p-4">
-          <h2 className="mb-3 text-[13px] font-semibold">日历写入</h2>
+      )}
+      {tab === "calendar" && (
+        <section aria-label="日历写入">
           <CalendarDraftPanel goalId={goal.id} />
         </section>
-      </div>
+      )}
 
       {depConfirm && (
         <ConfirmDialog

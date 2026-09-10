@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,7 +63,7 @@ export function GoalCreateDialog({ onCreated }: { onCreated: (g: GoalView) => vo
       <DialogTrigger
         render={
           <Button size="sm">
-            <Sparkles className="mr-1.5 size-3.5" aria-hidden />
+            <Plus className="mr-1.5 size-3.5" aria-hidden />
             新目标
           </Button>
         }

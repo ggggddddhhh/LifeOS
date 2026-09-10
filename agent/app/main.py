@@ -203,6 +203,23 @@ def calendar_execute(req: ExecuteRequest):
     return ExecuteResponse(results=results, provider=name)
 
 
+@app.get("/v1/calendar/facts")
+def calendar_facts(days: int = 30, timezone: str = "Asia/Shanghai", calendar: CalendarClient | None = Depends(get_calendar_dep)):
+    """UI 只读观察面（UI Redesign V2）：透出 fetch_facts 的原始事件（含 source=user|lifeos）。
+    纯读——不触碰 OAuth/写路径；窗口从今天起向前看，上限 62 天。"""
+    if calendar is None:
+        return {"ok": False, "error": "calendar_not_configured", "events": [], "days": [], "window_days": 0}
+    facts = calendar.fetch_facts(max(1, min(62, days)), timezone)
+    return {
+        "ok": facts.ok,
+        "error": facts.error,
+        "events": [e.model_dump() for e in facts.events],
+        "days": [d.model_dump() for d in facts.days],
+        "window_days": facts.window_days,
+        "fetched_at": facts.fetched_at,
+    }
+
+
 @app.get("/v1/calendar/status")
 def calendar_status():
     """连接状态（Phase 8.5 运维面）。绝不返回任何 token 值。"""

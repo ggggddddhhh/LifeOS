@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ListTodo, Settings, Sparkles, Target } from "lucide-react";
+import { CalendarDays, History, Settings, Sun, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/", label: "Today", icon: Sparkles },
+  { href: "/", label: "Today", icon: Sun },
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/activity", label: "Activity", icon: ListTodo },
+  { href: "/activity", label: "Activity", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-/** Desktop 侧栏导航（mobile 折叠为底部 Tab，见 app-shell）。 */
+/** Desktop 侧栏导航（mobile 折叠为底部 Tab，见 app-shell）。选中态 = 唯一 accent。 */
 export function SidebarNav() {
   const pathname = usePathname();
   return (
@@ -29,7 +29,7 @@ export function SidebarNav() {
               "flex flex-1 items-center justify-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-150",
               "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-              active && "bg-muted text-foreground",
+              active && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary",
               "md:flex-none md:justify-start md:px-3",
             )}
           >

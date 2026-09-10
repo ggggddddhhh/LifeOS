@@ -69,7 +69,8 @@ class TestExtremeScenarios:
             old_open_titles={"A"}, done_titles=set(), capacity_minutes=None, reason="r",
         )
         # deadline 未提供 → 窗口 = 今天+14；原始日期被钳入窗口
-        assert out[0]["dueDate"] <= "2026-09-23"
+        from datetime import date as _date, timedelta as _td
+        assert out[0]["dueDate"] <= (_date.today() + _td(days=14)).isoformat()
         assert any(a["type"] == "invalid_date" for a in fin["adjustments"])
 
     def test_completed_task_not_resurrected_and_annotated(self):

@@ -6,9 +6,9 @@ import { budgetOf, capacityMinutesOf, daysLeftOf, fmtDate, type GoalView } from 
 import { DEFAULT_POLICY, type PlanningPolicy } from "@/lib/policy-core";
 
 /**
- * 容量表达：默认按策略（每日可投入 × 剩余工作日）估算并标注「估算」；replan 后若 Agent
- * 返回了真实 Calendar 容量（capacityMinutes），由页面传入 override 覆盖并标注「日历实测」
- * ——语义与后端一致，不再冒充。
+ * 容量表达：默认按策略（每日可投入 × 剩余工作日）估算并标注「估算」；本会话内 replan 后若
+ * Agent 返回了真实 Calendar 容量（capacityMinutes），由页面传入 override 覆盖并标注「日历实测」
+ * ——语义与后端一致，不冒充。
  */
 export function CapacityBar({
   goal,
@@ -64,7 +64,16 @@ export function CapacityBar({
   );
 }
 
-/** Goal Detail 顶部信息行：进度 · 截止 · 容量 · 计划版本。 */
+function Stat({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className={cn("tabular text-[13px] font-medium leading-tight text-foreground", tone)}>{value}</span>
+    </div>
+  );
+}
+
+/** Goal Detail 控制中心统计条：进度 · 截止 · 容量 · 计划版本（label + value 的紧凑行）。 */
 export function GoalHeader({
   goal,
   capacityMinutes,
@@ -78,30 +87,36 @@ export function GoalHeader({
   const total = goal.tasks.length;
   const daysLeft = daysLeftOf(goal.deadline);
   const urgent = daysLeft !== null && daysLeft <= 2;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <div className="flex items-baseline gap-1.5">
-        <span className="tabular text-lg font-semibold">{done}</span>
-        <span className="tabular text-sm text-muted-foreground">/ {total} 完成</span>
-      </div>
+    <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+      <Stat label="进度" value={`${done}/${total} 完成 · ${pct}%`} />
       {goal.deadline && (
-        <span
-          className={cn(
-            "tabular inline-flex items-center gap-1.5 text-xs",
-            urgent ? "font-medium text-danger" : "text-muted-foreground",
-          )}
-        >
-          <CalendarDays className="size-3.5" aria-hidden />
-          {fmtDate(goal.deadline)} 截止
-          <span className={urgent ? "" : "text-muted-foreground/70"}>· 剩 {daysLeft} 天</span>
-        </span>
+        <Stat
+          label="截止"
+          value={
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarDays className="size-3.5 text-muted-foreground" aria-hidden />
+              {fmtDate(goal.deadline)}
+              <span className={cn(urgent ? "text-danger" : "text-muted-foreground")}>· 剩 {daysLeft} 天</span>
+            </span>
+          }
+        />
       )}
-      <span className="tabular inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Gauge className="size-3.5" aria-hidden />
-        计划第 {goal.revision} 版
-      </span>
-      <CapacityBar goal={goal} capacityMinutesOverride={capacityMinutes} policy={policy} />
+      <Stat
+        label="计划版本"
+        value={
+          <span className="inline-flex items-center gap-1.5">
+            <Gauge className="size-3.5 text-muted-foreground" aria-hidden />
+            第 {goal.revision} 版
+          </span>
+        }
+      />
+      <div className="min-w-[180px] flex-1">
+        <span className="text-[11px] text-muted-foreground">剩余工作量 vs 容量</span>
+        <CapacityBar goal={goal} capacityMinutesOverride={capacityMinutes} policy={policy} />
+      </div>
     </div>
   );
 }

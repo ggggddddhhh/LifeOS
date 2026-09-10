@@ -73,6 +73,20 @@ export default function ActivityPage() {
                     <span className="tabular shrink-0">第 {it.revision} 版</span>
                   </div>
                   <button onClick={() => setOpen(expanded ? null : it.id)} aria-expanded={expanded} className="group mt-0.5 flex w-full items-start gap-1.5 text-left">
+                    <span className="mt-px shrink-0">
+                      {it.diff ? (
+                        (() => {
+                          const n = it.diff!.summary.added + it.diff!.summary.removed + it.diff!.changed.length;
+                          return n > 0 ? (
+                            <span className="tabular rounded border bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {n} 项调整
+                            </span>
+                          ) : (
+                            <span className="rounded border bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">无变更</span>
+                          );
+                        })()
+                      ) : null}
+                    </span>
                     <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{it.reason}</p>
                     <ChevronRight className={cn("mt-0.5 size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150 group-hover:text-muted-foreground", expanded && "rotate-90")} aria-hidden />
                   </button>

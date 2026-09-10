@@ -4,14 +4,16 @@ import { cn } from "@/lib/utils";
 import type { TaskView } from "@/lib/ui-data";
 import type { TaskStatus } from "@/lib/types";
 
-/** Today 紧凑任务行：checkbox + 标题 + goal 缩写 + 时长。 */
+/** Today 紧凑任务行：checkbox + 标题 + goal 缩写 + 时长（+ 可选到期标记）。 */
 export function TaskRow({
   task,
   goalAbbr,
+  dueLabel,
   onStatusChange,
 }: {
   task: TaskView;
   goalAbbr: string;
+  dueLabel?: string;
   onStatusChange: (id: string, status: TaskStatus) => void;
 }) {
   const status = task.status as TaskStatus;
@@ -45,6 +47,11 @@ export function TaskRow({
       <span className={cn("min-w-0 flex-1 truncate text-[13px]", status === "done" && "text-muted-foreground line-through")}>
         {task.title}
       </span>
+      {dueLabel && (
+        <span className={cn("tabular shrink-0 text-[11px]", dueLabel === "已过期" ? "font-medium text-danger" : "text-muted-foreground")}>
+          {dueLabel}
+        </span>
+      )}
       <span className="tabular shrink-0 text-[11px] text-muted-foreground">
         {task.durationDays && task.durationDays >= 1 ? `${task.durationDays}d` : `${task.estMinutes}m`}
       </span>

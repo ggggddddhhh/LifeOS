@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, RotateCcw, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, RotateCcw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { PlanDiffView } from "./plan-diff";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ShiftChanges, ShiftDetails, ShiftReason } from "./shift-preview";
 import type { PlanDiff, PlannedTask } from "@/lib/types";
 import type { Envelope } from "@/lib/ui-data";
 
@@ -17,9 +17,13 @@ interface PreviewData {
   finalize?: { finalizeAdjusted?: boolean; reason?: string } | null;
 }
 
+export interface ReplanResultInfo {
+  capacityMinutes?: number | null;
+}
+
 /**
- * 重新规划（克制的 AI Action，Phase 10 确认制）：
- * 分析（预览，不落库）→ 用户在确认框审阅变更 → 应用 → 短期内可撤销。
+ * Replan（确认制，产品核心 Action）：
+ * 分析（预览，不落库）→ Shift Preview 审阅（结构化 Before→After + 原因）→ 应用 → 可撤销。
  * 与日历写入同一原则：AI 只提案，改计划必须人确认。
  */
 export function ReplanAction({
@@ -29,10 +33,9 @@ export function ReplanAction({
 }: {
   goalId: string;
   disabledReason?: string | null;
-  onDone: () => void;
+  onDone?: (info?: ReplanResultInfo) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [undoable, setUndoable] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
@@ -44,6 +47,7 @@ export function ReplanAction({
     setError(null);
     setPreview(null);
     setAppliedNote(null);
+    setUndoable(false);
     try {
       const res = await fetch(`/api/goals/${goalId}/replan?preview=1`, { method: "POST" });
       const json = (await res.json()) as Envelope<PreviewData>;
@@ -52,7 +56,6 @@ export function ReplanAction({
         return;
       }
       setPreview(json.data);
-      setConfirmOpen(true);
     } catch {
       setError("网络不可达，请稍后重试");
     } finally {
@@ -79,15 +82,14 @@ export function ReplanAction({
         setError(json.error ?? "应用失败");
         return;
       }
-      setAppliedNote(`已按新计划（第 ${json.data?.revision} 版）调整任务，接下来可以生成新的日历排期`);
+      setAppliedNote(`已按新计划（第 ${json.data?.revision} 版）调整任务。接下来可以生成新的日历排期草稿。`);
       setUndoable(true);
       setPreview(null);
-      onDone();
+      onDone?.({ capacityMinutes: preview.capacityMinutes ?? null });
     } catch {
       setError("网络不可达，请稍后重试");
     } finally {
       setBusy(false);
-      setConfirmOpen(false);
     }
   }
 
@@ -101,9 +103,9 @@ export function ReplanAction({
         setError(json.error ?? "撤销失败");
         return;
       }
-      setAppliedNote("已撤销这次调整，恢复为之前的任务列表");
+      setAppliedNote("已撤销这次调整，恢复为之前的任务列表。");
       setUndoable(false);
-      onDone();
+      onDone?.();
     } catch {
       setError("网络不可达，请稍后重试");
     } finally {
@@ -111,54 +113,80 @@ export function ReplanAction({
     }
   }
 
+  const changeCount = preview ? preview.diff.added.length + preview.diff.removed.length + preview.diff.changed.length : 0;
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={runPreview} disabled={busy || !!disabledReason} title={disabledReason ?? undefined}>
-          {busy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden /> : <Sparkles className="mr-1.5 size-3.5" aria-hidden />}
-          {busy ? "分析中…" : "重新规划"}
+        <Button onClick={runPreview} disabled={busy || !!disabledReason} title={disabledReason ?? undefined}>
+          {busy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden /> : <RefreshCw className="mr-1.5 size-3.5" aria-hidden />}
+          {busy ? "正在分析进度与容量…" : "重新规划"}
         </Button>
         {undoable && (
-          <Button size="sm" variant="outline" onClick={undo} disabled={undoBusy}>
+          <Button variant="outline" onClick={undo} disabled={undoBusy}>
             {undoBusy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden /> : <RotateCcw className="mr-1.5 size-3.5" aria-hidden />}
             {undoBusy ? "撤销中…" : "撤销这次调整"}
           </Button>
         )}
         {disabledReason && <span className="text-[11px] text-muted-foreground">{disabledReason}</span>}
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        根据真实进度、截止时间与日历容量重新提案——先预览调整内容，确认后才生效。
+      </p>
       {error && <p className="text-xs text-danger">{error}</p>}
       {appliedNote && (
         <p className="animate-rise rounded-lg border bg-muted/30 px-3.5 py-2.5 text-xs leading-relaxed text-foreground">{appliedNote}</p>
       )}
 
       {preview && (
-        <ConfirmDialog
-          open={confirmOpen}
-          onOpenChange={(v) => {
-            setConfirmOpen(v);
-            if (!v) setPreview(null);
-          }}
-          title="按这个新计划调整任务？"
-          description="以下是调整内容，确认后才会替换当前未完成的任务。"
-          confirmLabel="确认调整"
-          busy={busy}
-          onConfirm={apply}
-        >
-          <div className="max-h-72 space-y-2 overflow-auto">
-            <p className="text-xs leading-relaxed text-foreground">{preview.reason}</p>
-            {preview.finalize?.finalizeAdjusted && preview.finalize.reason && (
-              <p className="border-l-2 border-border pl-2 text-[11px] leading-relaxed text-muted-foreground">
-                最终调整：{preview.finalize.reason}
-              </p>
-            )}
-            <div className="border-t pt-2">
-              <PlanDiffView diff={preview.diff} />
+        <Dialog open onOpenChange={(v) => !v && !busy && setPreview(null)}>
+          <DialogContent className="max-h-[85dvh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+            <DialogHeader className="border-b px-5 py-4">
+              <DialogTitle className="flex items-center gap-2">
+                重新规划
+                {changeCount > 0 && (
+                  <span className="tabular rounded border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {changeCount} 项调整
+                  </span>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                根据当前进度、截止时间与日历容量，PlanShift 建议调整未完成的任务。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="max-h-[55dvh] space-y-4 overflow-auto px-5 py-4">
+              {changeCount > 0 ? (
+                <ShiftChanges diff={preview.diff} />
+              ) : (
+                <p className="rounded-lg border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+                  新计划与当前未完成的任务一致，不需要调整。
+                </p>
+              )}
+              <ShiftDetails diff={preview.diff} />
+              <section aria-label="调整原因" className="space-y-1.5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">原因</h3>
+                <ShiftReason reason={preview.reason} finalize={preview.finalize} />
+              </section>
             </div>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              已写入日历的旧排期不会自动改动，可在应用后重新生成排期草稿。
-            </p>
-          </div>
-        </ConfirmDialog>
+
+            <DialogFooter className="items-start gap-1 px-5">
+              <p className="flex w-full items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground sm:order-first sm:w-auto sm:max-w-xs">
+                <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                确认只更新 PlanShift 的任务计划，不会改动你的 Google Calendar——写入日历需要单独确认。
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={busy} onClick={() => setPreview(null)}>
+                  不采用
+                </Button>
+                <Button onClick={apply} disabled={busy}>
+                  {busy && <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden />}
+                  {busy ? "应用中…" : changeCount > 0 ? `确认 ${changeCount} 项调整` : "确认"}
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

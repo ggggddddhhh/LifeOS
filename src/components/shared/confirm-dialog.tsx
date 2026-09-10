@@ -49,12 +49,13 @@ export function ConfirmDialog({
       </DialogHeader>
       {children}
       <DialogFooter>
-        <DialogClose render={<Button variant="outline" disabled={busy} />}>取消</DialogClose>
+        {/* destructive 场景默认焦点给「取消」——危险操作必须显式移动焦点才可达 */}
+        <DialogClose render={<Button variant="outline" disabled={busy} autoFocus={destructive} />}>取消</DialogClose>
         <Button
           variant={destructive ? "destructive" : "default"}
           disabled={busy}
           onClick={onConfirm}
-          autoFocus
+          autoFocus={!destructive}
         >
           {busy ? "处理中…" : confirmLabel}
         </Button>

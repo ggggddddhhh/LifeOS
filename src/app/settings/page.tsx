@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Plug, PlugZap, Settings as SettingsIcon, Unplug } from "lucide-react";
+import { CheckCircle2, Plug, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Skeleton } from "@/components/shared/states";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { PlanningPolicySection } from "@/components/settings/planning-policy-section";
+import { CalendarConnectGuide } from "@/components/settings/calendar-connect-guide";
 import type { Envelope } from "@/lib/ui-data";
 
 interface CalStatus {
@@ -24,17 +25,27 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<CalStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** 区分「Agent 服务没启动」与「已连上但未授权」——前者是运维状态，不是配置问题 */
+  const [serviceDown, setServiceDown] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setError(null);
+    setServiceDown(false);
     try {
       const res = await fetch("/api/settings/calendar");
+      if (!res.ok) {
+        setServiceDown(true);
+        setError("Agent 服务未运行——请先启动（npm run agent），再点「刷新状态」");
+        setStatus(null);
+        return;
+      }
       const json = (await res.json()) as Envelope<CalStatus>;
       if (json.ok && json.data) setStatus(json.data);
       else setError(json.error ?? "读取失败");
     } catch {
-      setError("Agent 不可达（需要先启动 agent 服务）");
+      setServiceDown(true);
+      setError("网络不可达，请检查服务是否在运行");
     } finally {
       setLoading(false);
     }
@@ -55,6 +66,10 @@ export default function SettingsPage() {
   }
 
   const connected = status?.connected === true;
+  /** Google 已授权连接（真正的 Google OAuth）；ICS 模式的 connected 只表示日历源可用，不代表 Google */
+  const googleOn = connected && status?.provider === "google";
+  const icsOn = connected && status?.provider === "ics";
+  const [showGoogleGuide, setShowGoogleGuide] = useState(false);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -72,56 +87,87 @@ export default function SettingsPage() {
 
       <PlanningPolicySection />
 
-      <section aria-label="Google Calendar 连接" className="rounded-lg border p-4">
+      <section aria-label="日历连接" className="rounded-lg border p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-[13px] font-semibold">Google Calendar</h2>
+            <h2 className="text-[13px] font-semibold">日历连接</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              只读你的空闲容量 + 经你确认后创建事件；断开会撤销授权并清除本地凭据。
+              {icsOn
+                ? "PlanShift 正在读取本地 ICS 日历文件（只读）：观察忙碌时段与既有事件，用于容量推断与排期避让。"
+                : "连接 Google Calendar：只读你的空闲容量；创建事件前需要你逐条确认。断开会撤销授权并清除本地凭据。"}
             </p>
           </div>
           {loading ? (
             <Skeleton className="h-6 w-20" />
-          ) : error ? (
-            <StatusBadge tone="warning">状态未知</StatusBadge>
-          ) : connected ? (
+          ) : serviceDown ? (
+            <StatusBadge tone="warning" dot>
+              服务未启动
+            </StatusBadge>
+          ) : googleOn ? (
             <StatusBadge tone="success" dot>
               已连接
+            </StatusBadge>
+          ) : icsOn ? (
+            <StatusBadge tone="info" dot>
+              ICS 只读接入
             </StatusBadge>
           ) : (
             <StatusBadge tone="neutral">未连接</StatusBadge>
           )}
         </div>
 
-        <dl className="mt-3 space-y-1.5 text-xs">
-          {status?.accountEmail && (
-            <div className="flex gap-2">
-              <dt className="w-16 shrink-0 text-muted-foreground">账号</dt>
-              <dd className="truncate">{status.accountEmail}</dd>
-            </div>
-          )}
-          {status?.calendarId && (
-            <div className="flex gap-2">
-              <dt className="w-16 shrink-0 text-muted-foreground">日历</dt>
-              <dd className="truncate">{status.calendarId}</dd>
-            </div>
-          )}
-          {status?.store && (
-            <div className="flex gap-2">
-              <dt className="w-16 shrink-0 text-muted-foreground">凭据存储</dt>
-              <dd className="truncate">{status.store === "FileTokenStore" ? "本地文件（开发模式）" : status.store}</dd>
-            </div>
-          )}
-        </dl>
+        {googleOn && (
+          <dl className="mt-3 space-y-1.5 text-xs">
+            {status?.accountEmail && (
+              <div className="flex gap-2">
+                <dt className="w-16 shrink-0 text-muted-foreground">账号</dt>
+                <dd className="truncate">{status.accountEmail}</dd>
+              </div>
+            )}
+            {status?.calendarId && (
+              <div className="flex gap-2">
+                <dt className="w-16 shrink-0 text-muted-foreground">日历</dt>
+                <dd className="truncate">{status.calendarId}</dd>
+              </div>
+            )}
+            {status?.store && (
+              <div className="flex gap-2">
+                <dt className="w-16 shrink-0 text-muted-foreground">凭据存储</dt>
+                <dd className="truncate">{status.store === "FileTokenStore" ? "本地文件（开发模式）" : status.store}</dd>
+              </div>
+            )}
+          </dl>
+        )}
 
         {error && <p className="mt-3 text-xs text-muted-foreground">{error}</p>}
 
+        {!loading && !serviceDown && !error && (!connected || (icsOn && showGoogleGuide)) && (
+          <CalendarConnectGuide showIcsHint={!icsOn} />
+        )}
+        {!loading && !serviceDown && !error && icsOn && !showGoogleGuide && (
+          <button
+            type="button"
+            onClick={() => setShowGoogleGuide(true)}
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            连接 Google Calendar，获得确认制写入 →
+          </button>
+        )}
+        {icsOn && showGoogleGuide && (
+          <button
+            type="button"
+            onClick={() => setShowGoogleGuide(false)}
+            className="mt-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            收起，继续使用 ICS 只读
+          </button>
+        )}
+
         <div className="mt-4 flex items-center gap-2">
-          {connected ? (
+          {googleOn && (
             <ConfirmDialog
               trigger={
                 <Button size="sm" variant="outline" className="text-danger">
-                  <Unplug className="mr-1.5 size-3.5" aria-hidden />
                   断开连接
                 </Button>
               }
@@ -132,12 +178,6 @@ export default function SettingsPage() {
               busy={busy}
               onConfirm={disconnect}
             />
-          ) : (
-            <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
-              <PlugZap className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              连接方式：在 agent/.env 设 CALENDAR_PROVIDER=google 与 GOOGLE_CREDENTIALS_FILE，
-              然后运行 agent/smoke_google.py 完成一次授权（state + PKCE）。
-            </p>
           )}
           <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
             刷新状态
