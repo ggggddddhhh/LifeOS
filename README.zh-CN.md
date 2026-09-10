@@ -24,9 +24,9 @@
 
 ## 截图
 
-| Today 今日 | Goal 目标与看板 |
+| Today 今日 | Goal 目标详情 |
 |---|---|
-| ![Today](screenshots/today.png) | ![Kanban](screenshots/goal-kanban.png) |
+| ![Today](screenshots/today.png) | ![Goal Detail](screenshots/goal-detail.png) |
 | **Replan 重新规划预览** | **Calendar 日历** |
 | ![Replan Preview](screenshots/replan-preview.png) | ![Calendar](screenshots/calendar.png) |
 

@@ -24,9 +24,9 @@ Every step in the video is a real product run: real LLM planning, real Google Ca
 
 ## Screenshots
 
-| Today | Goal & Kanban |
+| Today | Goal Detail |
 |---|---|
-| ![Today](screenshots/today.png) | ![Kanban](screenshots/goal-kanban.png) |
+| ![Today](screenshots/today.png) | ![Goal Detail](screenshots/goal-detail.png) |
 | **Replan Preview** | **Calendar** |
 | ![Replan Preview](screenshots/replan-preview.png) | ![Calendar](screenshots/calendar.png) |
 
